@@ -26,7 +26,7 @@ def fista(A, b, x=None,
           prox=lambda z,l: prox.l1(z,l),
           debias=False):
     # FISTA to find support
-    x_result, r_result, count = iterative_soft_thresholding(A, b, x=x, tol=tol, maxiter=maxiter, xtol=xtol, l=l, L=L, eta=eta, nesterovs_momentum=nesterovs_momentum, restart_every=restart_every, prox=prox)
+    x_result, r_result, count = iterative_soft_thresholding(A, b, x=x, tol=tol, maxiter=maxiter, tolx=tolx, l=l, L=L, eta=eta, nesterovs_momentum=nesterovs_momentum, restart_every=restart_every, prox=prox)
 
     # debias by least squares (equivalent to a single step of OMP)
     if debias:
@@ -40,7 +40,7 @@ def fista_scad(A, b, x=None, tol=1e-5, maxiter=1000, tolx=1e-12,
                a=3.7, switch_to_scad_after = 0):
     # FISTA up to switch_to_scad_after times to find good initial guess with bias
     if switch_to_scad_after > 0:
-        x_result = iterative_soft_thresholding(A, b, x=x, tol=tol, maxiter=switch_to_scad_after, tolx=xtolx, l=l, L=L, eta=eta, nesterovs_momentum=nesterovs_momentum, restart_every=restart_every)[0]
+        x_result = iterative_soft_thresholding(A, b, x=x, tol=tol, maxiter=switch_to_scad_after, tolx=tolx, l=l, L=L, eta=eta, nesterovs_momentum=nesterovs_momentum, restart_every=restart_every)[0]
     else:
         x_result = None
 
@@ -54,7 +54,7 @@ def fista_scad(A, b, x=None, tol=1e-5, maxiter=1000, tolx=1e-12,
 # Iterative soft thresholding algorithm
 #
 # x, r, count = iterative_soft_thresholding(A, b, x=None, 
-#                   tol=1e-5, maxiter=1000, xtol=1e-12, l=1., L=None, eta=2., 
+#                   tol=1e-5, maxiter=1000, tolx=1e-12, l=1., L=None, eta=2., 
 #                   Nesterov=True, restart_every=np.nan, prox=lambda z,th: soft_thresh(z, th))
 # solves
 # x = arg min_x f(x) + g(x)   where f(x)=0.5||b-Ax||^2, g(x)=l*||x||_1
@@ -66,7 +66,7 @@ def fista_scad(A, b, x=None, tol=1e-5, maxiter=1000, tolx=1e-12,
 # x      : initial guess, (A.conj().T.dot(b) by default), will be mdified in this function
 # tol    : tolerance for residual (1e-5 by default)
 # maxiter: max. iterations (1000 by default)
-# xtol   : tolerance for x displacement (1e-12 by default)
+# tolx   : tolerance for x displacement (1e-12 by default)
 # l      : barancing parameter lambda (1. by default)
 # L      : Lipschitz constant (automatically computed by default)
 # eta    : magnification L*=eta in the linear search of L
@@ -82,7 +82,7 @@ def fista_scad(A, b, x=None, tol=1e-5, maxiter=1000, tolx=1e-12,
 # Example:
 # x = iterative_soft_thresholding(A, b, l=1.5, maxiter=1000, tol=linalg.norm(b)*1e-12, nesterovs_momentum=True)
 #
-def iterative_soft_thresholding(A, b, x=None, tol=1e-5, maxiter=1000, xtol=1e-12, l=1., L=None, eta=2., nesterovs_momentum=False, restart_every=np.nan, prox=lambda z,l: prox.l1(z,l)):
+def iterative_soft_thresholding(A, b, x=None, tol=1e-5, maxiter=1000, tolx=1e-12, l=1., L=None, eta=2., nesterovs_momentum=False, restart_every=np.nan, prox=lambda z,l: prox.l1(z,l)):
 
     # define the functions that compute projections by A and its adjoint
     if type(A) is tuple:
@@ -129,7 +129,7 @@ def iterative_soft_thresholding(A, b, x=None, tol=1e-5, maxiter=1000, xtol=1e-12
 
         r = b - fA(w)
         
-        if linalg.norm(dx) < xtol:
+        if linalg.norm(dx) < tolx:
             break
 
         if np.max(np.abs(x)) > 1e+20:          # check overflow
