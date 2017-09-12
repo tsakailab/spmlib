@@ -13,16 +13,16 @@ from scipy import linalg
 #%%
 # Incremental SVD
 #
-# U, sv = column_incremental_SVD(U, sv, C, forget=1., max_rank=np.inf, min_sv=0, orth_eps=1e-12, OrthogonalizeU=False)
+# U, sv = column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0, orth_eps=1e-12, OrthogonalizeU=False)
 #
 # performs the incremental SVD in
 # M. Brand, "Incremental singular value decomposition of uncertain data with missing values",
 # ECCV2002, p. 707-720, 2002.
 #
 # input:
+# C        : m x nc matrix of column vectors to append
 # U        : m x r matrix of left singular vectors
 # sv       : r-dimensional vector of singular values
-# C        : m x nc matrix of column vectors to append
 # forget   : forgetting parameter (0<forget<=1, 1 by default)
 # max_rank : maximum rank (m by default)
 # min_sv   : smaller singular values than min_sv is neglected (0 by default)
@@ -41,7 +41,7 @@ from scipy import linalg
 #    U, sv = column_incremental_SVD(U, sv, Y[:,j:j+1], max_rank=50, orth_eps=linalg.norm(Y[:,j:j+1])*1e-12)
 #    count = count + 1
 #
-def column_incremental_SVD(U, sv, C, forget=1., max_rank=np.inf, min_sv=0., orth_eps=1e-12, OrthogonalizeU=False):
+def column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0., orth_eps=1e-12, OrthogonalizeU=False):
 
     r = sv.size
     
@@ -89,21 +89,37 @@ def column_incremental_SVD(U, sv, C, forget=1., max_rank=np.inf, min_sv=0., orth
 
 
 '''
-% function [ l, s, svdt, opt ] = ColwiseSPCP_ADMM(d, svdt, varargin)
 #%%
 # Column incremental stable principal component pursuit (ColSPCP)
 #
 # l, s, U, sv = column_incremental_stable_principal_component_pursuit(c, U, sv, 
-#                       ls=1., tolr=1e-12, delta=1e-12., ls=1., 
+#                       ls=1., rtol=1e-12, delta=1e-12., rho=1., 
 #                       forget=1., max_rank=np.inf, min_sv=0., orth_eps=1e-12, OrthogonalizeU=False)
 #
-# performs the incremental SVD in
-# M. Brand, "Incremental singular value decomposition of uncertain data with missing values",
-# ECCV2002, p. 707-720, 2002.
+# performs the incremental stable principal component pursuit in
+# S. Ogawa, H. Kuhara and T. Sakai, 
+#    "Sequential decomposition of 3D apparent motion fields basedon low-rank and sparse approximation",
+# APSIPA2017 (to appear).
 #
 # input:
-# U        : m x r matrix of left singular vectors
-# s        : r-dimensional vector of singular values
+# c        : m-dimensional vector to be decomposed into l and s such that ||d-(l+s)||_2<=delta
+# U        : m x r matrix of left singular vectors approximately spanning the subspace of low-rank components
+# sv       : r-dimensional vector of singular values
+
+# ls       : weight of sparse regularizer (1 by default), can be a vector of weights for each pixel
+# rtol     : relative convergence torelance (1e-12 by default) of x and z in ADMM
+# delta    : l2-ball radius used in the indicator function (1e-12 by default) for the approximation error
+# rho      : augmented Lagrangian parameter (1 by default)
+%        forget : forgetting parameter in updating U (1 by default)
+%        maxRank: maximum rank (m by default)
+% %        minSV  : lower bound of singular values (0 by default)
+%        refineUevery: update the basis U in the ADMM loop (0 by default)
+# orth_eps : rank increases if the magnitude of C in the orthogonal subspace is larger than orth_eps (1e-12 by default)
+# OrthogonalizeU : if True, perform QR decomposition to orthogonalize U (True by default)
+
+
+
+
 
 def column_incremental_stable_principal_component_pursuit(d, svdt, varargin)
 %

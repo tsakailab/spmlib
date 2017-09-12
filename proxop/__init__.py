@@ -3,5 +3,5 @@
 @author: tsakai@cis.nagasaki-u.ac.jp
 """
 
-from proximity_operators import *
+from .proximity_operators import *
 

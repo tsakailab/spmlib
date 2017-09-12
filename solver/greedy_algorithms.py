@@ -104,7 +104,6 @@ def subspace_pursuit(A, b, K=None, s0=None, maxiter=None):
         #K = m // 4
         K = int(0.5*m / np.log2(n/m))
         K = min(K, m//4)
-        print K
     if maxiter is None:
         maxiter = K
     if s0 is None or len(s0) == 0:

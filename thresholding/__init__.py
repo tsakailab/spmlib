@@ -3,5 +3,5 @@
 @author: tsakai@cis.nagasaki-u.ac.jp
 """
 
-from thresholding_operators import *
+from .thresholding_operators import *
 

@@ -3,5 +3,5 @@
 @author: tsakai@cis.nagasaki-u.ac.jp
 """
 
-from lstsq import *
+from .lstsq import *
 
