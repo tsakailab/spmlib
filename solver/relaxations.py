@@ -112,10 +112,10 @@ def iterative_soft_thresholding(A, b, x=None, tol=1e-5, maxiter=1000, tolx=1e-12
     r = b - fA(w)  # residual
     while count < maxiter and linalg.norm(r) > tol:
         count += 1
-        xold = x.copy()
+        dx = x.copy()  # old x
         # x = prox(w + A.conj().T.dot(r) / L, l / L)
         x = prox(w + fAT(r) / L, l / L)
-        dx = x - xold
+        dx = x - dx
 
         if np.mod(count, restart_every) == 0:
             t = 1.

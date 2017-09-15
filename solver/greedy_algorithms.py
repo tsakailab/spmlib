@@ -17,6 +17,9 @@ from spmlib.linalg import lstsq, spvec
 
 
 #%% Matching pursuit (MP)
+#
+# S .G. Mallat and Z. Zhang. "Matching pursuits with time-frequency dictionaries."
+# IEEE TSP 41(12), pp. 3397-3415, 1993.
 def matching_pursuit(A, b, tol=1e-5, maxiter=None):
     m, n = A.shape
     if maxiter is None:
@@ -40,6 +43,11 @@ def matching_pursuit(A, b, tol=1e-5, maxiter=None):
 
 
 #%% Orthogonal matching pursuit (OMP)
+#
+# Y. C. Pati, R. Rezaiifar, and P. S. Krishnaprasad, 
+# "Orthogonal matching pursuit: Recursive function approximation with applications to wavelet decomposition."
+# The Twenty-Seventh Asilomar Conference on Signals, Systems and Computers, pp. 40-44, 1993.
+#
 # s0 is an initial guess of the support (a set of the indices of nonzeros)
 def orthogonal_matching_pursuit(A, b, s0=None, tol=1e-5, maxnnz=None):
     m, n = A.shape
@@ -94,7 +102,7 @@ def generalized_orthogonal_matching_pursuit(A, b, N=3, s0=None, tol=1e-5, maxnnz
 
 
 
-#%% Generalized orthogonal matching pursuit (gOMP)
+#%% Subspace pursuit
 # 
 # W. Dai and M. O. Milenkovic, "Subspace pursuit for compressive sensing signal reconstruction",
 # IEEE TIT, 55(5), pp.2230-2249, 2009.

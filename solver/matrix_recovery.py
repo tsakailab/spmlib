@@ -30,7 +30,7 @@ import spmlib.proxop as prox
 # maxit : max. iterations (300 by default)
 # tol   : tolerance for residual (1e-5 by default)
 # verbose: print costs f(X) and g(X) (False by default)
-# Nesterov: Nesterov acceleration (False by default)
+# nesterovs_momentum: Nesterov acceleration (False by default)
 # restart_every: restart the Nesterov acceleration every this number of iterations (disabled by default)
 # prox_rank: proximity operator of g(x), the soft thresholding of singular values prox.nuclear(Z, th) by default for the nuclear norm g(x)=th*||x||_1.
 #
@@ -42,7 +42,7 @@ import spmlib.proxop as prox
 # Example:
 # Yest = low_rank_matrix_completion(Y, R=R, l=1., tol=1e-4*linalg.norm(Y[R]), maxit=100, Nesterov=True, restart_every=100)[0]
 #
-def low_rank_matrix_completion(Y, R=None, l=1., rho=1., maxit=300, tol=1e-5, verbose=False, Nesterov=False, restart_every = np.nan, prox_rank=lambda Z,l: prox.nuclear(Z,l)):
+def low_rank_matrix_completion(Y, R=None, l=1., rho=1., maxit=300, tol=1e-5, verbose=False, nesterovs_momentum=False, restart_every = np.nan, prox_rank=lambda Z,l: prox.nuclear(Z,l)):
 
     Y = Y.copy()
 #   if a bool matrix R (observation) is given, mask Y with False of R
@@ -79,27 +79,33 @@ def low_rank_matrix_completion(Y, R=None, l=1., rho=1., maxit=300, tol=1e-5, ver
     while count < maxit and dres > tol:
         count += 1
 
-        x = pinvG.dot(z - u)
+        if np.mod(count, restart_every) == 0: #
+            t = 1.
+        if nesterovs_momentum:
+            told = t
+            t = 0.5 * (1. + sqrt(1. + 4. * t * t))
 
+        # update x
+        x = pinvG.dot(z - u)
+ 
         Gx = G.dot(x)
         v = Gx + u
 
-        zold = z.copy() #
-        uold = u.copy() #
-
+        # update z
+        dz = z.copy() #
         z[:numObsY] = (rho*v[:numObsY] + Y[R].ravel())/(rho+1.)
         # z[numObsY:] = soft_svd(v[numObsY:].reshape(m,n,order='F'), w/rho)[0].ravel()
         L, U, s, V = prox_rank(v[numObsY:].reshape(m,n), l/rho)
         z[numObsY:] = L.ravel()
-        u = u + Gx - z
+        dz = z - dz #
 
-        dz = z - zold #
-        du = u - uold #
-        if np.mod(count, restart_every) == 0: #
-            t = 1.
-        if Nesterov:
-            told = t
-            t = 0.5 * (1. + sqrt(1. + 4. * t * t))
+        # update u
+        du = u.copy() #
+        u = u + Gx - z
+        du = u - du #
+
+        # Nesterov acceleration
+        if nesterovs_momentum:
             z = z + ((told - 1.) / t) * dz
             u = u + ((told - 1.) / t) * du
 

@@ -10,22 +10,6 @@ from scipy import linalg
 import scipy.sparse.linalg as splinalg
 
 
-#%% Create full vector from its nonzero components and support (can be duplicate)
-def spvec(n, nonzeros, support, duplicate=False):
-    spv = np.zeros(n)
-    if not duplicate:
-        spv = np.zeros(n)
-        spv[support] = nonzeros
-    else:
-        # because spv[support] += nonzeros doesn't work as expected ..
-        j = 0
-        for s in support:
-            spv[s] += nonzeros[j]
-            j += 1
-    return spv
-
-
-
 #%%
 # Compute least squares B = lstsq(A[:,ls], B)[0] and its residues
 # A is a matrix or a linear operator
