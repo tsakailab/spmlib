@@ -11,6 +11,42 @@ import numpy as np
 from scipy import linalg
 import spmlib.proxop as prox
 from spmlib.linalg import as2darray
+import spmlib.thresholding as th
+
+
+#%%
+# Example:
+# from spmlib import solver as sps
+# U, sv = np.empty([0,0]), np.empty(0)  # initialize
+# L, S = np.zeros(C.shape), np.zeros(C.shape)
+# for j in range(C.shape[1]):
+#    Lest[:,j], Sest[:,j], U, sv = sps.ColSPCP_SCAD(C[:,j], U, sv,
+#                                                   ls=0.05, maxiter=100, switch_to_scad_after=40,
+#                                                   rtol=1e-4, rdelta=1e-6, max_rank=20)
+#
+def ColSPCP_SCAD(c, U, sv,
+                 l=None, s=None, rtol=1e-4, maxiter=1000,
+                 rdelta=1e-4, ls=1., rho=1., updateBasis=True,
+                 refineU_every=np.nan, forget=1., max_rank=np.inf, min_sv=0., rorth_eps=1e-8, OrthogonalizeU=True,
+                 nesterovs_momentum=False, restart_every = np.nan,
+                 a=3.7, switch_to_scad_after=0):
+    # ColSPCP up to switch_to_scad_after times to find good initial guess
+    normc = linalg.norm(c)
+    if switch_to_scad_after > 0:
+        l, s, UU, svsv, count = column_incremental_stable_principal_component_pursuit(c, U, sv, 
+                        l=l, s=s, rtol=rtol, maxiter=switch_to_scad_after,
+                        delta=normc*rdelta, ls=ls, rho=rho, updateBasis=False,
+                        refineU_every=refineU_every, forget=forget, max_rank=max_rank, min_sv=min_sv, orth_eps=normc*rorth_eps, OrthogonalizeU=False,
+                        nesterovs_momentum=nesterovs_momentum, restart_every = restart_every)
+
+    # ColSPCP with SCAD thresholding to debias
+    return column_incremental_stable_principal_component_pursuit(c, U, sv, 
+                        l=l, s=s, rtol=rtol, maxiter=maxiter,
+                        delta=normc*rdelta, ls=ls, rho=rho, updateBasis=updateBasis,
+                        refineU_every=refineU_every, forget=forget, max_rank=max_rank, min_sv=min_sv, orth_eps=normc*rorth_eps, OrthogonalizeU=OrthogonalizeU,
+                        nesterovs_momentum=nesterovs_momentum, restart_every = restart_every,
+                        prox_s=lambda q,ls: th.smoothly_clipped_absolute_deviation(q,ls,a=a))
+
 
 
 #%%
@@ -41,7 +77,7 @@ from spmlib.linalg import as2darray
 # m, n = Y.shape
 # U, sv = np.empty([0,0]), np.empty(0)  # initialize
 # count = 0
-# for j in range(n):
+# for j in range(C.shape[1]):
 #    U, sv = sps.column_incremental_SVD(Y[:,j:j+1], U, sv, max_rank=50, orth_eps=linalg.norm(Y[:,j:j+1])*1e-12)
 #    count = count + 1
 #
@@ -99,7 +135,7 @@ def column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0., orth
 #%%
 # Column incremental stable principal component pursuit (ColSPCP)
 #
-# l, s, U, sv = column_incremental_stable_principal_component_pursuit(c, U, sv, 
+# l, s, U, sv, count = column_incremental_stable_principal_component_pursuit(c, U, sv, 
 #                        l=None, s=None, rtol=1e-12, maxiter=1000,
 #                        delta=1e-12, ls=1., rho=1., updateBasis=False,
 #                        refineU_every=np.nan, forget=1., max_rank=np.inf, min_sv=0., orth_eps=1e-12, OrthogonalizeU=False,
@@ -162,17 +198,16 @@ def column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0., orth
 # s        : sparse component
 # U        : matrix of left singular vectors updated with l
 # sv       : vector of singular values updated with l
+# count    : iteration count
 #
 #
 # Example:
 # from spmlib import solver as sps
-# m, n = Y.shape
 # U, sv = np.empty([0,0]), np.empty(0)  # initialize
-# count = 0
+# L, S = np.zeros(C.shape), np.zeros(C.shape)
 # for j in range(n):
-#    l, s, U, sv = sps.column_incremental_stable_principal_component_pursuit(Y[:,j:j+1], U, sv, ls=0.5, updateBasis=True,
-#                                               max_rank=50, orth_eps=linalg.norm(Y[:,j:j+1])*1e-12)
-#    count = count + 1
+#    L[:,j], S[:,j], U, sv = sps.column_incremental_stable_principal_component_pursuit(C[:,j], U, sv, ls=0.5, updateBasis=True,
+#                                               max_rank=50, orth_eps=linalg.norm(Y[:,j])*1e-12)
 #
 def column_incremental_stable_principal_component_pursuit(c, U, sv, 
                         l=None, s=None, rtol=1e-12, maxiter=1000,
@@ -192,8 +227,8 @@ def column_incremental_stable_principal_component_pursuit(c, U, sv,
         l = c.ravel() - s
     
     if sv.size == 0:
-        U, sv, V = linalg.svd(np.asmatrix(c.T).T, full_matrices=False)
-        return l, s, U, sv
+        U, sv, V = linalg.svd(as2darray(c), full_matrices=False)
+        return l, s, U, sv, 0
 
     # G = lambda x: np.concatenate((x[:m]+x[m:], x[:m], x[m:]))
     # x = np.concatenate((l,s))
@@ -237,7 +272,7 @@ def column_incremental_stable_principal_component_pursuit(c, U, sv,
         if np.mod(count, refineU_every) == 0:
             Ut = column_incremental_SVD(x[:m], U, sv, 
                                            forget=forget, max_rank=max_rank, min_sv=min_sv,
-                                           orth_eps=orth_eps, OrthogonalizeU=OrthogonalizeU)[0]
+                                           orth_eps=orth_eps, OrthogonalizeU=False)[0]
         dz = z.copy()
         z[:m]    = prox_ls(q[:m], delta, c.ravel())
         z[m:2*m] = prox_l(q[m:2*m], Ut)
@@ -254,8 +289,6 @@ def column_incremental_stable_principal_component_pursuit(c, U, sv,
 
         # Nesterov acceleration
         if nesterovs_momentum:
-            told = t
-            t = 0.5 * (1. + sqrt(1. + 4. * t * t))
             z = z + ((told - 1.) / t) * dz
             y = y + ((told - 1.) / t) * dy
         
@@ -270,7 +303,7 @@ def column_incremental_stable_principal_component_pursuit(c, U, sv,
                                        forget=forget, max_rank=max_rank, min_sv=min_sv,
                                        orth_eps=orth_eps, OrthogonalizeU=OrthogonalizeU)
 
-    return l, s, U, sv
+    return l, s, U, sv, count
 
 
 

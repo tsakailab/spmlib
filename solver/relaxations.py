@@ -40,12 +40,10 @@ def fista_scad(A, b, x=None, tol=1e-5, maxiter=1000, tolx=1e-12,
                a=3.7, switch_to_scad_after = 0):
     # FISTA up to switch_to_scad_after times to find good initial guess with bias
     if switch_to_scad_after > 0:
-        x_result = iterative_soft_thresholding(A, b, x=x, tol=tol, maxiter=switch_to_scad_after, tolx=tolx, l=l, L=L, eta=eta, nesterovs_momentum=nesterovs_momentum, restart_every=restart_every)[0]
-    else:
-        x_result = None
+        x = iterative_soft_thresholding(A, b, x=x, tol=tol, maxiter=switch_to_scad_after, tolx=tolx, l=l, L=L, eta=eta, nesterovs_momentum=nesterovs_momentum, restart_every=restart_every)[0]
 
     # FISTA with SCAD thresholding to debias
-    return iterative_soft_thresholding(A, b, x=x_result, tol=tol, maxiter=maxiter, tolx=tolx, l=l, L=L, eta=eta, nesterovs_momentum=nesterovs_momentum, #restart_every=restart_every,
+    return iterative_soft_thresholding(A, b, x=x, tol=tol, maxiter=maxiter, tolx=tolx, l=l, L=L, eta=eta, nesterovs_momentum=nesterovs_momentum, #restart_every=restart_every,
                                        prox=lambda z,thresh: th.smoothly_clipped_absolute_deviation(z,thresh,a=a))
 
 
@@ -82,7 +80,11 @@ def fista_scad(A, b, x=None, tol=1e-5, maxiter=1000, tolx=1e-12,
 # Example:
 # x = iterative_soft_thresholding(A, b, l=1.5, maxiter=1000, tol=linalg.norm(b)*1e-12, nesterovs_momentum=True)
 #
-def iterative_soft_thresholding(A, b, x=None, tol=1e-5, maxiter=1000, tolx=1e-12, l=1., L=None, eta=2., nesterovs_momentum=False, restart_every=np.nan, prox=lambda z,l: prox.l1(z,l)):
+def iterative_soft_thresholding(A, b, x=None, 
+                                tol=1e-5, maxiter=1000, tolx=1e-12, 
+                                l=1., L=None, eta=2., 
+                                nesterovs_momentum=False, restart_every=np.nan, 
+                                prox=lambda z,l: prox.l1(z,l)):
 
     # define the functions that compute projections by A and its adjoint
     if type(A) is tuple:

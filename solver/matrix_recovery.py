@@ -29,7 +29,7 @@ import spmlib.proxop as prox
 # rho   : ADMM constant (1. by default)
 # maxit : max. iterations (300 by default)
 # tol   : tolerance for residual (1e-5 by default)
-# verbose: print costs f(X) and g(X) (False by default)
+# verbose: print costs f(X) and g(X) every this number (False by default, can be True or 1, 2, ...)
 # nesterovs_momentum: Nesterov acceleration (False by default)
 # restart_every: restart the Nesterov acceleration every this number of iterations (disabled by default)
 # prox_rank: proximity operator of g(x), the soft thresholding of singular values prox.nuclear(Z, th) by default for the nuclear norm g(x)=th*||x||_1.
@@ -111,8 +111,9 @@ def low_rank_matrix_completion(Y, R=None, l=1., rho=1., maxit=300, tol=1e-5, ver
 
         res = linalg.norm(x[R.ravel()] - Y[R].ravel())**2
         tr = np.sum(s)
-        if verbose and np.mod(count,10) == 0:
-            print('%2d: 0.5*||R.*(Y-Yest)||_F^2 + l * ||Yest||_* = %.2e + %.2e = %.2e' % (count, 0.5*res, l*tr, 0.5*res+l*tr))
+        if verbose:
+            if np.mod(count,verbose) == 0:
+                print('%2d: 0.5*||R.*(Y-Yest)||_F^2 + l * ||Yest||_* = %.2e + %.2e = %.2e' % (count, 0.5*res, l*tr, 0.5*res+l*tr))
 
         dres = np.abs(res - res_old)
         res_old = res
