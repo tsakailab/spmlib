@@ -20,17 +20,17 @@ import spmlib.thresholding as th
 # U, sv = np.empty([0,0]), np.empty(0)  # initialize
 # L, S = np.zeros(C.shape), np.zeros(C.shape)
 # for j in range(C.shape[1]):
-#    Lest[:,j], Sest[:,j], U, sv = sps.ColSPCP_SCAD(C[:,j], U, sv,
+#    Lest[:,j], Sest[:,j], U, sv = sps.IncSPCP_SCAD(C[:,j], U, sv,
 #                                                   ls=0.05, maxiter=100, switch_to_scad_after=40,
 #                                                   rtol=1e-4, rdelta=1e-6, max_rank=20)
 #
-def ColSPCP_SCAD(c, U, sv,
+def IncSPCP_SCAD(c, U, sv,
                  l=None, s=None, rtol=1e-4, maxiter=1000,
                  rdelta=1e-4, ls=1., rho=1., updateBasis=True,
                  refineU_every=np.nan, forget=1., max_rank=np.inf, min_sv=0., rorth_eps=1e-8, OrthogonalizeU=True,
                  nesterovs_momentum=False, restart_every = np.nan,
                  a=3.7, switch_to_scad_after=0):
-    # ColSPCP up to switch_to_scad_after times to find good initial guess
+    # IncSPCP up to switch_to_scad_after times to find good initial guess
     normc = linalg.norm(c)
     if switch_to_scad_after > 0:
         l, s, UU, svsv, count = column_incremental_stable_principal_component_pursuit(c, U, sv, 
@@ -39,7 +39,7 @@ def ColSPCP_SCAD(c, U, sv,
                         refineU_every=refineU_every, forget=forget, max_rank=max_rank, min_sv=min_sv, orth_eps=normc*rorth_eps, OrthogonalizeU=False,
                         nesterovs_momentum=nesterovs_momentum, restart_every = restart_every)
 
-    # ColSPCP with SCAD thresholding to debias
+    # IncSPCP with SCAD thresholding to debias
     return column_incremental_stable_principal_component_pursuit(c, U, sv, 
                         l=l, s=s, rtol=rtol, maxiter=maxiter,
                         delta=normc*rdelta, ls=ls, rho=rho, updateBasis=updateBasis,
@@ -64,7 +64,8 @@ def ColSPCP_SCAD(c, U, sv,
 # sv       : r-dimensional vector of singular values (overwritten with the update)
 # forget   : forgetting parameter (0<forget<=1, 1 by default)
 # max_rank : maximum rank (m by default)
-# min_sv   : smaller singular values than min_sv is neglected (0 by default)
+# min_sv   : smaller singular values than min_sv is neglected (0. by default),
+#            sv >= max(sv)*abs(min_sv) if min_sv is negative
 # orth_eps : rank increases if the magnitude of C in the orthogonal subspace is larger than orth_eps (1e-12 by default)
 # OrthogonalizeU : if True, perform QR decomposition to orthogonalize U (True by default)
 #
@@ -107,7 +108,7 @@ def column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0., orth
         # rank must not be greater than max_rank, and the singlular values must be greater than min_sv
         r = min(max_rank, sv.size)       # r = min(max_rank, numel(sv));
         sv = sv[:r]                       # sv = sv(1:r);
-        sv = sv[sv>=min_sv]                # sv = sv(sv >= min_sv);
+        sv = sv[sv>=min_sv] if min_sv >= 0. else sv[sv>=-min_sv*max(sv)]  # sv = sv(sv >= min_sv);
         r = sv.size                      # ｒ = numel(sv);
         U = np.concatenate((U, Q), 1).dot(UB)    # U = [U, Q] * UB;
         U = U[:,:r]                     # U = U(:,1:r)
@@ -133,7 +134,7 @@ def column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0., orth
 
 
 #%%
-# Column incremental stable principal component pursuit (ColSPCP)
+# Column incremental stable principal component pursuit (IncSPCP)
 #
 # l, s, U, sv, count = column_incremental_stable_principal_component_pursuit(c, U, sv, 
 #                        l=None, s=None, rtol=1e-12, maxiter=1000,
