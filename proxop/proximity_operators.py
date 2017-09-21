@@ -53,9 +53,9 @@ def squ_l2_from_subspace(q, l, U):
         fU = U[0]
         fUT = U[1]
     else:
-        U = splinalg.aslinearoperator(U)
-        fU = U.matvec
-        fUT = U.rmatvec
+        Us = splinalg.aslinearoperator(U)
+        fU = Us.matvec
+        fUT = Us.rmatvec
 
     return (q + l * fU(fUT(q))) / (l+1.)
 
