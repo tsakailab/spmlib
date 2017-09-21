@@ -231,19 +231,21 @@ def column_incremental_stable_principal_component_pursuit(c, U, sv,
         U, sv, V = linalg.svd(as2darray(c), full_matrices=False)
         return l, s, U, sv, 0
 
+    uptype = c.dtype
+
     # G = lambda x: np.concatenate((x[:m]+x[m:], x[:m], x[m:]))
     # x = np.concatenate((l,s))
-    x = np.zeros(2*m)
+    x = np.zeros(2*m, dtype=uptype)
     x[:m] = l
     x[m:] = s
 
     # z = G(x)
-    z = np.zeros(3*m)
+    z = np.zeros(3*m, dtype=uptype)
     z[:m]    = x[:m] + x[m:]
     z[m:2*m] = x[:m]
     z[2*m:]  = x[m:]
 
-    y = np.zeros(3*m)
+    y = np.zeros(3*m, dtype=uptype)
     
     t = 1.
     count = 0

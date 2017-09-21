@@ -20,13 +20,20 @@ import spmlib.thresholding as th
 # prox of l2-ball with center c and radius r
 #
 # arg min_x ind_l2ball(x,r,c) + 0.5*||x-q||_2^2 = q if q in the l2-ball, otherwise c + r * (q-c)/||q-c||_2
-def ind_l2ball(q, r, c):
-    qc = q - c
-    normqc = linalg.norm(qc)
-    if normqc > r:
-        return c + r * qc / normqc
+def ind_l2ball(q, r, c=None):
+    if c is None:
+        normq = linalg.norm(q)
+        if normq > r:
+            return r * q / normq
+        else:
+            return q
     else:
-        return q
+        qc = q - c
+        normqc = linalg.norm(qc)
+        if normqc > r:
+            return c + r * qc / normqc
+        else:
+            return q
 
 
 #%%

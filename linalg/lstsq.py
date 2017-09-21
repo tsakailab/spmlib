@@ -8,6 +8,8 @@ Created on Thu Apr 27 08:42:11 2017
 import numpy as np
 from scipy import linalg
 import scipy.sparse.linalg as splinalg
+from spmlib.linalg import spvec
+
 
 
 #%%
