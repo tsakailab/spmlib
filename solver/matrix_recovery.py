@@ -69,7 +69,7 @@ def low_rank_matrix_completion(Y, R=None, l=1., rho=1., maxit=300, tol=1e-5, ver
 
 #   initialize
     z = np.concatenate( (Y[R].ravel(),np.zeros(m*n).ravel()) )
-    u = np.zeros(z.shape)
+    u = np.zeros(z.shape, dtype=z.dtype)
 #    time0 = time.time()
     count = 0
     res_old = 0.

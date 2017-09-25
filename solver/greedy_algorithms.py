@@ -49,7 +49,8 @@ def matching_pursuit(A, b, tol=1e-5, maxiter=None):
 # The Twenty-Seventh Asilomar Conference on Signals, Systems and Computers, pp. 40-44, 1993.
 #
 # s0 is an initial guess of the support (a set of the indices of nonzeros)
-def orthogonal_matching_pursuit(A, b, s0=None, tol=1e-5, maxnnz=None):
+def orthogonal_matching_pursuit(A, b, s0=None, tol=1e-5, maxnnz=None,
+                                iter_lim=None, solver='eig', atol=1e-3, btol=1e-3, conlim=1e+4):
     m, n = A.shape
     if maxnnz is None:
         maxnnz = m // 2
@@ -59,7 +60,8 @@ def orthogonal_matching_pursuit(A, b, s0=None, tol=1e-5, maxnnz=None):
         r = b.copy()
     else:
         support = np.array(s0, dtype=int)
-        xnz, r = lstsq(A, b, support=support)
+        xnz, r = lstsq(A, b, support=support,
+                       iter_lim=iter_lim, solver=solver, atol=atol, btol=btol, conlim=conlim)
 
     # main loop
     count = 0
@@ -67,7 +69,8 @@ def orthogonal_matching_pursuit(A, b, s0=None, tol=1e-5, maxnnz=None):
         count += 1
         s = np.argmax(np.abs( splinalg.aslinearoperator(A).rmatvec(r) ))
         support = np.union1d(support, [s])
-        xnz, r = lstsq(A, b, support=support)
+        xnz, r = lstsq(A, b, support=support,
+                       iter_lim=iter_lim, solver=solver, atol=atol, btol=btol, conlim=conlim)
     return spvec(n, xnz, support), r, count
 
 
@@ -76,7 +79,8 @@ def orthogonal_matching_pursuit(A, b, s0=None, tol=1e-5, maxnnz=None):
 # 
 # J. Wang, S.Kwon, and B. Shim, "Generalized orthogonal matching pursuit",
 # IEEE TSP, 60(12), pp. 6202-6216, 2012.
-def generalized_orthogonal_matching_pursuit(A, b, N=3, s0=None, tol=1e-5, maxnnz=None):
+def generalized_orthogonal_matching_pursuit(A, b, N=3, s0=None, tol=1e-5, maxnnz=None,
+                                            iter_lim=None, solver='eig', atol=1e-3, btol=1e-3, conlim=1e+4):
     m, n = A.shape
     if maxnnz is None:
         maxnnz = m // 2
@@ -86,7 +90,8 @@ def generalized_orthogonal_matching_pursuit(A, b, N=3, s0=None, tol=1e-5, maxnnz
         r = b.copy()
     else:
         support = np.array(s0, dtype=int)
-        xnz, r = lstsq(A, b, support=support)
+        xnz, r = lstsq(A, b, support=support,
+                       iter_lim=iter_lim, solver=solver, atol=atol, btol=btol, conlim=conlim)
 
     # main loop
     count = 0
@@ -95,7 +100,8 @@ def generalized_orthogonal_matching_pursuit(A, b, N=3, s0=None, tol=1e-5, maxnnz
         c = splinalg.aslinearoperator(A).rmatvec(r)        # c = A.conj().T.dot(r)
         s = np.argsort(-np.abs(c))
         support = np.union1d(support, s[:N])
-        xnz, r = lstsq(A, b, support=support)
+        xnz, r = lstsq(A, b, support=support,
+                       iter_lim=iter_lim, solver=solver, atol=atol, btol=btol, conlim=conlim)
         # xnz = linalg.lstsq(A[:,T],b)[0]
         #r = b - A.dot(x)
     return spvec(n, xnz, support), r, count
@@ -106,7 +112,8 @@ def generalized_orthogonal_matching_pursuit(A, b, N=3, s0=None, tol=1e-5, maxnnz
 # 
 # W. Dai and M. O. Milenkovic, "Subspace pursuit for compressive sensing signal reconstruction",
 # IEEE TIT, 55(5), pp.2230-2249, 2009.
-def subspace_pursuit(A, b, K=None, s0=None, maxiter=None):
+def subspace_pursuit(A, b, K=None, s0=None, maxiter=None,
+                     iter_lim=None, solver='eig', atol=1e-3, btol=1e-3, conlim=1e+4):
     m, n = A.shape
     if K is None:
         #K = m // 4
@@ -119,7 +126,8 @@ def subspace_pursuit(A, b, K=None, s0=None, maxiter=None):
         supp = np.array(np.argsort(-np.abs(c))[:K], dtype = int)
     else:
         supp = np.array(s0, dtype=int)
-    xnzp, r = lstsq(A, b, support=supp)
+    xnzp, r = lstsq(A, b, support=supp,
+                    iter_lim=iter_lim, solver=solver, atol=atol, btol=btol, conlim=conlim)
 
     #Told = np.array([], dtype = int)
     normrold = np.inf
@@ -135,9 +143,11 @@ def subspace_pursuit(A, b, K=None, s0=None, maxiter=None):
         # T = union of T and {K indices corresponding to the largest magnitude entries in the vector A'*r}
         c = splinalg.aslinearoperator(A).rmatvec(r)
         supp = np.union1d(supp, np.argsort(-np.abs(c))[:K])
-        xnzp, r = lstsq(A, b, support=supp)
+        xnzp, r = lstsq(A, b, support=supp,
+                        iter_lim=iter_lim, solver=solver, atol=atol, btol=btol, conlim=conlim)
         # T = {K indices corresponding to the largest elements of xp}
         supp = supp[np.argsort(-np.abs(xnzp))[:K]]
-        xnzp, r = lstsq(A, b, support=supp)
+        xnzp, r = lstsq(A, b, support=supp,
+                        iter_lim=iter_lim, solver=solver, atol=atol, btol=btol, conlim=conlim)
         normr = linalg.norm(r)
     return spvec(n, xnz, support), r, count

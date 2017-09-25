@@ -10,7 +10,6 @@ from math import sqrt
 import numpy as np
 from scipy import linalg
 import spmlib.proxop as prox
-from spmlib.linalg import as2darray
 import spmlib.thresholding as th
 
 
@@ -87,12 +86,12 @@ def column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0., orth
     r = sv.size
     
     if r == 0:
-        U, sv, V = linalg.svd(as2darray(C), full_matrices=False)
+        U, sv, V = linalg.svd(np.atleast_2d(C.T).T, full_matrices=False)
         return U, sv
 
     Cin = U.conj().T.dot(C)   # Cin = U' * C;
     Cout = C - U.dot(Cin)        # Cout = C - U * Cin;
-    Cin, Cout = as2darray(Cin), as2darray(Cout)
+    Cin, Cout = np.atleast_2d(Cin.T).T, np.atleast_2d(Cout.T).T
     Q, R = linalg.qr(Cout, mode='economic')     # QR decomposition
 
     if linalg.norm(R) > orth_eps:
@@ -100,7 +99,7 @@ def column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0., orth
         # B = [f * diag(diagK), Cin; zeros(size(C,2), r), R];
         B = np.concatenate((
                 np.concatenate((np.diag(forget * sv), Cin),1), 
-                np.concatenate((np.zeros((as2darray(C).shape[1], r)), R), 1)))
+                np.concatenate((np.zeros((np.atleast_2d(C.T).T.shape[1], r)), R), 1)))
 
         # [UB, sv, ~] = svd(full(B), 'econ'); sv = diag(sv);
         UB, sv, VB = linalg.svd(B, full_matrices=False)
@@ -228,7 +227,7 @@ def column_incremental_stable_principal_component_pursuit(c, U, sv,
         l = c.ravel() - s
     
     if sv.size == 0:
-        U, sv, V = linalg.svd(as2darray(c), full_matrices=False)
+        U, sv, V = linalg.svd(np.atleast_2d(c.T).T, full_matrices=False)
         return l, s, U, sv, 0
 
     uptype = c.dtype

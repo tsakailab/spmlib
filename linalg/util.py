@@ -38,7 +38,3 @@ def unvec(v, shape):
 def mat(v, shape):
     return np.reshape(v, shape)
 
-
-#%% force to be (m,n) array, e.g., (m,)->(m,1), (m,n)->(m,n)
-def as2darray(q):
-    return np.asmatrix(q.T).T
