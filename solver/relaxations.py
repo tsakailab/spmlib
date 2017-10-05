@@ -119,7 +119,7 @@ def iterative_soft_thresholding(A, b, x=None,
         x = prox(w + fAT(r) / L, l / L)
         dx = x - dx
 
-        if np.mod(count, restart_every) == 0:
+        if np.fmod(count, restart_every) == 0:
             t = 1.
             
         if nesterovs_momentum:

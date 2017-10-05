@@ -11,9 +11,10 @@ import numpy as np
 
 #%% Create full vector from its nonzero components and support (indices can be duplicate)
 def spvec(n, nonzeros, support, duplicate=False):
-    spv = np.zeros(n)
+    nonzeros = np.array(nonzeros)
+    spv = np.zeros(n, dtype=nonzeros.dtype)
     if not duplicate:
-        spv = np.zeros(n)
+        spv = np.zeros(n, dtype=nonzeros.dtype)
         spv[support] = nonzeros
     else:
         # because spv[support] += nonzeros doesn't work as expected ..

@@ -59,17 +59,17 @@ def low_rank_matrix_completion(Y, R=None, l=1., rho=1., maxit=300, tol=1e-5, ver
     #Y = Y / scale
 
     m, n = Y.shape
-    G = sp.vstack((sp.eye(m*n, format='csr')[R.ravel()], sp.eye(m*n)))
+    G = sp.vstack((sp.eye(m*n, format='csr', dtype=Y.dtype)[R.ravel()], sp.eye(m*n, dtype=Y.dtype)))
     #pinvG = linalg.pinv(G.toarray())
 #   Pseudo inverse of G is explicitly described as 
-    pinvG = np.ones(m*n)
+    pinvG = np.ones(m*n, dtype=Y.dtype)
     pinvG[R.ravel()] = 0.5
     pinvG = sp.diags(pinvG, format='csr') # sp.dia_matrix((pinvG,np.array([0])), shape=())
-    pinvG = sp.hstack((0.5*sp.eye(m*n, format='csr')[R.ravel()].T, pinvG))
+    pinvG = sp.hstack((0.5*sp.eye(m*n, format='csr', dtype=Y.dtype)[R.ravel()].T, pinvG))
 
 #   initialize
-    z = np.concatenate( (Y[R].ravel(),np.zeros(m*n).ravel()) )
-    u = np.zeros(z.shape, dtype=z.dtype)
+    z = np.concatenate( (Y[R].ravel(),np.zeros(m*n, dtype=Y.dtype).ravel()) )
+    u = np.zeros_like(z) #np.zeros(z.shape, dtype=z.dtype)
 #    time0 = time.time()
     count = 0
     res_old = 0.
@@ -79,7 +79,7 @@ def low_rank_matrix_completion(Y, R=None, l=1., rho=1., maxit=300, tol=1e-5, ver
     while count < maxit and dres > tol:
         count += 1
 
-        if np.mod(count, restart_every) == 0: #
+        if np.fmod(count, restart_every) == 0: #
             t = 1.
         if nesterovs_momentum:
             told = t
@@ -112,7 +112,7 @@ def low_rank_matrix_completion(Y, R=None, l=1., rho=1., maxit=300, tol=1e-5, ver
         res = linalg.norm(x[R.ravel()] - Y[R].ravel())**2
         tr = np.sum(s)
         if verbose:
-            if np.mod(count,verbose) == 0:
+            if np.fmod(count,verbose) == 0:
                 print('%2d: 0.5*||R.*(Y-Yest)||_F^2 + l * ||Yest||_* = %.2e + %.2e = %.2e' % (count, 0.5*res, l*tr, 0.5*res+l*tr))
 
         dres = np.abs(res - res_old)

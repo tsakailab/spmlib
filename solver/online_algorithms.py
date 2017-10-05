@@ -19,39 +19,39 @@ import spmlib.thresholding as th
 # U, sv = np.empty([0,0]), np.empty(0)  # initialize
 # L, S = np.zeros(C.shape), np.zeros(C.shape)
 # for j in range(C.shape[1]):
-#    Lest[:,j], Sest[:,j], U, sv = sps.IncSPCP_SCAD(C[:,j], U, sv,
+#    Lest[:,j], Sest[:,j], U, sv = sps.OnlSPCP_SCAD(C[:,j], U, sv,
 #                                                   ls=0.05, maxiter=100, switch_to_scad_after=40,
 #                                                   rtol=1e-4, rdelta=1e-6, max_rank=20)
 #
-def IncSPCP_SCAD(c, U, sv,
+def OnlSPCP_SCAD(c, U, sv,
                  l=None, s=None, rtol=1e-4, maxiter=1000,
-                 rdelta=1e-4, ls=1., rho=1., updateBasis=True,
-                 refineU_every=np.nan, forget=1., max_rank=np.inf, min_sv=0., rorth_eps=1e-8, OrthogonalizeU=True,
+                 rdelta=1e-4, ls=1., rho=1., update_basis=True,
+                 adjust_basis_every=np.nan, forget=1., max_rank=np.inf, min_sv=0., rorth_eps=1e-8, orthogonalize_basis=True,
                  nesterovs_momentum=False, restart_every = np.nan,
                  a=3.7, switch_to_scad_after=0):
-    # IncSPCP up to switch_to_scad_after times to find good initial guess
+    # OnlSPCP up to switch_to_scad_after times to find good initial guess
     normc = linalg.norm(c)
     if switch_to_scad_after > 0:
         l, s, UU, svsv, count = column_incremental_stable_principal_component_pursuit(c, U, sv, 
                         l=l, s=s, rtol=rtol, maxiter=switch_to_scad_after,
-                        delta=normc*rdelta, ls=ls, rho=rho, updateBasis=False,
-                        refineU_every=refineU_every, forget=forget, max_rank=max_rank, min_sv=min_sv, orth_eps=normc*rorth_eps, OrthogonalizeU=False,
+                        delta=normc*rdelta, ls=ls, rho=rho, update_basis=False,
+                        adjust_basis_every=adjust_basis_every, forget=forget, max_rank=max_rank, min_sv=min_sv, orth_eps=normc*rorth_eps, orthogonalize_basis=False,
                         nesterovs_momentum=nesterovs_momentum, restart_every = restart_every)
 
-    # IncSPCP with SCAD thresholding to debias
+    # OnlSPCP with SCAD thresholding to debias
     return column_incremental_stable_principal_component_pursuit(c, U, sv, 
                         l=l, s=s, rtol=rtol, maxiter=maxiter,
-                        delta=normc*rdelta, ls=ls, rho=rho, updateBasis=updateBasis,
-                        refineU_every=refineU_every, forget=forget, max_rank=max_rank, min_sv=min_sv, orth_eps=normc*rorth_eps, OrthogonalizeU=OrthogonalizeU,
+                        delta=normc*rdelta, ls=ls, rho=rho, update_basis=update_basis,
+                        adjust_basis_every=adjust_basis_every, forget=forget, max_rank=max_rank, min_sv=min_sv, orth_eps=normc*rorth_eps, orthogonalize_basis=orthogonalize_basis,
                         nesterovs_momentum=nesterovs_momentum, restart_every = restart_every,
                         prox_s=lambda q,ls: th.smoothly_clipped_absolute_deviation(q,ls,a=a))
 
 
 
 #%%
-# Incremental SVD
+# incremental SVD
 #
-# U, sv = column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0, orth_eps=1e-12, OrthogonalizeU=False)
+# U, sv = column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0, orth_eps=1e-12, orthogonalize_basis=False)
 #
 # performs the incremental SVD in
 # M. Brand, "Incremental singular value decomposition of uncertain data with missing values",
@@ -66,7 +66,7 @@ def IncSPCP_SCAD(c, U, sv,
 # min_sv   : smaller singular values than min_sv is neglected (0. by default),
 #            sv >= max(sv)*abs(min_sv) if min_sv is negative
 # orth_eps : rank increases if the magnitude of C in the orthogonal subspace is larger than orth_eps (1e-12 by default)
-# OrthogonalizeU : if True, perform QR decomposition to orthogonalize U (True by default)
+# orthogonalize_basis : if True, perform QR decomposition to orthogonalize U (True by default)
 #
 # output:
 # U        : updated U
@@ -81,7 +81,7 @@ def IncSPCP_SCAD(c, U, sv,
 #    U, sv = sps.column_incremental_SVD(Y[:,j:j+1], U, sv, max_rank=50, orth_eps=linalg.norm(Y[:,j:j+1])*1e-12)
 #    count = count + 1
 #
-def column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0., orth_eps=1e-12, OrthogonalizeU=False):
+def column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0., orth_eps=1e-12, orthogonalize_basis=False):
 
     r = sv.size
     
@@ -99,7 +99,7 @@ def column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0., orth
         # B = [f * diag(diagK), Cin; zeros(size(C,2), r), R];
         B = np.concatenate((
                 np.concatenate((np.diag(forget * sv), Cin),1), 
-                np.concatenate((np.zeros((np.atleast_2d(C.T).T.shape[1], r)), R), 1)))
+                np.concatenate((np.zeros((np.atleast_2d(C.T).T.shape[1], r), dtype=Cin.dtype), R), 1)))
 
         # [UB, sv, ~] = svd(full(B), 'econ'); sv = diag(sv);
         UB, sv, VB = linalg.svd(B, full_matrices=False)
@@ -111,7 +111,7 @@ def column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0., orth
         r = sv.size                      # ｒ = numel(sv);
         U = np.concatenate((U, Q), 1).dot(UB)    # U = [U, Q] * UB;
         U = U[:,:r]                     # U = U(:,1:r)
-        if OrthogonalizeU:
+        if orthogonalize_basis:
             U = linalg.qr(U, mode='economic')[0]    # [U,~] = qr(U(:,1:r),0);
 
     else:
@@ -122,7 +122,7 @@ def column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0., orth
         UB, sv, VB = linalg.svd(B, full_matrices=False)
 
         U = U.dot(UB)    # U = U * UB;
-        if OrthogonalizeU:
+        if orthogonalize_basis:
             U = linalg.qr(U, mode='economic')[0]    # [U,~] = qr(U,0);
         
 
@@ -133,12 +133,12 @@ def column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0., orth
 
 
 #%%
-# Column incremental stable principal component pursuit (IncSPCP)
+# Column incremental stable principal component pursuit (OnlSPCP)
 #
 # l, s, U, sv, count = column_incremental_stable_principal_component_pursuit(c, U, sv, 
 #                        l=None, s=None, rtol=1e-12, maxiter=1000,
-#                        delta=1e-12, ls=1., rho=1., updateBasis=False,
-#                        refineU_every=np.nan, forget=1., max_rank=np.inf, min_sv=0., orth_eps=1e-12, OrthogonalizeU=False,
+#                        delta=1e-12, ls=1., rho=1., update_basis=False,
+#                        adjust_basis_every=np.nan, forget=1., max_rank=np.inf, min_sv=0., orth_eps=1e-12, orthogonalize_basis=False,
 #                        nesterovs_momentum=False, restart_every = np.nan,
 #                        prox_ls=lambda q,r,c: prox.ind_l2ball(q,r,c),
 #                        prox_l=lambda q,U: prox.squ_l2_from_subspace(q,1.,U), 
@@ -161,9 +161,9 @@ def column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0., orth
 # input:
 # c        : m-dimensional vector to be decomposed into l and s such that ||d-(l+s)||_2<=delta
 # U        : m x r matrix of left singular vectors approximately spanning the subspace of low-rank components
-#            (overwritten with the update if updateBasis is True)
+#            (overwritten with the update if update_basis is True)
 # sv       : r-dimensional vector of singular values
-#            (overwritten with the update if updateBasis is True)
+#            (overwritten with the update if update_basis is True)
 #
 # l        : initial guess of l (None by default) # l = c - s
 # s        : initial guess of s (None by default) # s = zeros
@@ -173,13 +173,13 @@ def column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0., orth
 # ls       : weight of sparse regularizer (1. by default), can be a vector of weights for each pixel
 # rho      : augmented Lagrangian parameter (1. by default)
 #
-# updateBasis : update U and sv with l after convergence (False by default)
-# refineU_every  : update the basis U in the ADMM loop (disabled by default)
+# update_basis : update U and sv with l after convergence (False by default)
+# adjust_basis_every  : update the basis U in the ADMM loop (disabled by default)
 # forget   : forgetting parameter in updating U (1. by default)
 # max_rank : maximum rank (np.inf by default)
 # min_sv   : lower bound of singular values (0. by default)
 # orth_eps : rank increases if the magnitude of c in the orthogonal subspace is larger than orth_eps (1e-12 by default)
-# OrthogonalizeU : if True, perform QR decomposition to orthogonalize U (False by default)
+# orthogonalize_basis : if True, perform QR decomposition to orthogonalize U (False by default)
 #
 # nesterovs_momentum: Nesterov acceleration (False by default)
 # restart_every     : restart the Nesterov acceleration every this number of iterations (disabled by default)
@@ -206,13 +206,13 @@ def column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0., orth
 # U, sv = np.empty([0,0]), np.empty(0)  # initialize
 # L, S = np.zeros(C.shape), np.zeros(C.shape)
 # for j in range(n):
-#    L[:,j], S[:,j], U, sv = sps.column_incremental_stable_principal_component_pursuit(C[:,j], U, sv, ls=0.5, updateBasis=True,
-#                                               max_rank=50, orth_eps=linalg.norm(Y[:,j])*1e-12)
+#    L[:,j], S[:,j], U, sv = sps.column_incremental_stable_principal_component_pursuit(C[:,j], U, sv, ls=0.5, update_basis=True,
+#                                               max_rank=50, orth_eps=linalg.norm(Y[:,j])*1e-12)[:4]
 #
 def column_incremental_stable_principal_component_pursuit(c, U, sv, 
                         l=None, s=None, rtol=1e-12, maxiter=1000,
-                        delta=1e-12, ls=1., rho=1., updateBasis=False,
-                        refineU_every=np.nan, forget=1., max_rank=np.inf, min_sv=0., orth_eps=1e-12, OrthogonalizeU=False,
+                        delta=1e-12, ls=1., rho=1., update_basis=False,
+                        adjust_basis_every=np.nan, forget=1., max_rank=np.inf, min_sv=0., orth_eps=1e-12, orthogonalize_basis=False,
                         nesterovs_momentum=False, restart_every = np.nan,
                         prox_ls=lambda q,r,c: prox.ind_l2ball(q,r,c),
                         prox_l=lambda q,U: prox.squ_l2_from_subspace(q,1.,U), 
@@ -222,7 +222,7 @@ def column_incremental_stable_principal_component_pursuit(c, U, sv,
 
     # initialize l and s
     if s is None:
-        s = np.zeros(m)
+        s = np.zeros_like(c) # np.zeros(m, dtype=c.dtype)
     if l is None:
         l = c.ravel() - s
     
@@ -230,21 +230,19 @@ def column_incremental_stable_principal_component_pursuit(c, U, sv,
         U, sv, V = linalg.svd(np.atleast_2d(c.T).T, full_matrices=False)
         return l, s, U, sv, 0
 
-    uptype = c.dtype
-
     # G = lambda x: np.concatenate((x[:m]+x[m:], x[:m], x[m:]))
     # x = np.concatenate((l,s))
-    x = np.zeros(2*m, dtype=uptype)
+    x = np.zeros(2*m, dtype=c.dtype)
     x[:m] = l
     x[m:] = s
 
     # z = G(x)
-    z = np.zeros(3*m, dtype=uptype)
+    z = np.zeros(3*m, dtype=c.dtype)
     z[:m]    = x[:m] + x[m:]
     z[m:2*m] = x[:m]
     z[2*m:]  = x[m:]
 
-    y = np.zeros(3*m, dtype=uptype)
+    y = np.zeros_like(z) # np.zeros(3*m, dtype=c.dtype)
     
     t = 1.
     count = 0
@@ -252,7 +250,7 @@ def column_incremental_stable_principal_component_pursuit(c, U, sv,
     while count < maxiter:
         count += 1
 
-        if np.mod(count, restart_every) == 0:
+        if np.fmod(count, restart_every) == 0:
             t = 1.
         if nesterovs_momentum:
             told = t
@@ -271,10 +269,10 @@ def column_incremental_stable_principal_component_pursuit(c, U, sv,
         q[2*m:]  = x[m:]         + y[2*m:]
         
         # update z
-        if np.mod(count, refineU_every) == 0:
+        if np.fmod(count, adjust_basis_every) == 0:
             Ut = column_incremental_SVD(x[:m], U, sv, 
                                            forget=forget, max_rank=max_rank, min_sv=min_sv,
-                                           orth_eps=orth_eps, OrthogonalizeU=False)[0]
+                                           orth_eps=orth_eps, orthogonalize_basis=False)[0]
         dz = z.copy()
         z[:m]    = prox_ls(q[:m], delta, c.ravel())
         z[m:2*m] = prox_l(q[m:2*m], Ut)
@@ -300,10 +298,10 @@ def column_incremental_stable_principal_component_pursuit(c, U, sv,
         
     l = x[:m]
     s = x[m:]
-    if updateBasis:
+    if update_basis:
         U, sv = column_incremental_SVD(l, U, sv, 
                                        forget=forget, max_rank=max_rank, min_sv=min_sv,
-                                       orth_eps=orth_eps, OrthogonalizeU=OrthogonalizeU)
+                                       orth_eps=orth_eps, orthogonalize_basis=orthogonalize_basis)
 
     return l, s, U, sv, count
 
@@ -342,7 +340,7 @@ function [l, s, svdt, opt ] = ColwiseSPCP_ADMM(d, svdt, varargin)
 %        maxRank: maximum rank (m by default)
 %        meps   : epsilon not to increase ranks (1e-12 by default)
 % %        minSV  : lower bound of singular values (0 by default)
-%        refineUevery: update the basis U in the ADMM loop (0 by default)
+%        adjust_basis_every: update the basis U in the ADMM loop (0 by default)
 %        debias : debias by s = d-l at the support of s (false by default)
 %        %debias : debias by least squares solition with support of s (false by default)
 %
@@ -363,7 +361,7 @@ param = propertylist2struct(varargin{:});
 %% set the parameters as default values if not given.
 opt = set_defaults(param, struct('epsilon', 1e-12, 'lambdas', 1, 'alpha', 0, 'tol', 1e-12, 'iter', 1000, 's0', zeros(m,1), 'rho', 1, 'Nesterov', false, 'verbose', false));
 opt = set_defaults(opt, struct('softs', @(x,tau) sign(x).*max(abs(x)-tau,0)));
-opt = set_defaults(opt, struct('isUpdateU', true, 'forget', 1, 'maxRank', m, 'minSV', 0, 'meps', 1e-12,'refineUevery', 0, 'debias', false));
+opt = set_defaults(opt, struct('isUpdateU', true, 'forget', 1, 'maxRank', m, 'minSV', 0, 'meps', 1e-12,'adjust_basis_every', 0, 'debias', false));
 
 softs12e = @(x,w1,w2) opt.softs(x, w1) ./ (1+w2);
 softs12 = @(x,w1,w2) opt.softs(x, w1) / (1+w2);
