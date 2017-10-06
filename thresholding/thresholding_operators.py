@@ -13,7 +13,7 @@ from scipy import sparse as sp
 #%% sign function compatible with complex values
 def sgn(z):
     if np.all(np.isreal(z)):
-        return ((z>0) + 0) - ((z<0) + 0)
+        return np.sign(z)
     return np.divide(z, np.abs(z))
 
 
