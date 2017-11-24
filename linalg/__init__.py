@@ -5,3 +5,4 @@
 
 from .lstsq import *
 from .util import *
+from .random_projection import *

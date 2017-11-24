@@ -48,43 +48,42 @@ def fista_scad(A, b, x=None, tol=1e-5, maxiter=1000, tolx=1e-12,
 
 
 
-#%%
-# Iterative soft thresholding algorithm
-#
-# x, r, count = iterative_soft_thresholding(A, b, x=None, 
-#                   tol=1e-5, maxiter=1000, tolx=1e-12, l=1., L=None, eta=2., 
-#                   Nesterov=True, restart_every=np.nan, prox=lambda z,th: soft_thresh(z, th))
-# solves
-# x = arg min_x f(x) + g(x)   where f(x)=0.5||b-Ax||^2, g(x)=l*||x||_1
-#   = arg min_x 0.5*|| b - A x ||_2^2 + l' * abs(x)
-#
-# input:
-# A      : m x n matrix, LinearOperator, or tuple (fA, fAT) of lambda functions fA(z)=A.dot(z) and fAT(r)=A.conj().T.dot(r)
-# b      : m-dimensional vector
-# x      : initial guess, (A.conj().T.dot(b) by default), will be mdified in this function
-# tol    : tolerance for residual (1e-5 by default)
-# maxiter: max. iterations (1000 by default)
-# tolx   : tolerance for x displacement (1e-12 by default)
-# l      : barancing parameter lambda (1. by default)
-# L      : Lipschitz constant (automatically computed by default)
-# eta    : magnification L*=eta in the linear search of L
-# nesterovs_momentum: Nesterov acceleration (False by default)
-# restart_every: restart the Nesterov acceleration every this number of iterations (disabled by default)
-# prox   : proximity operator of g(x), the soft thresholding soft_thresh(z,l) (=prox.l1(z,l)) by default for g(x)=l*||x||_1.
-#
-# output:
-# x     : sparse solution
-# r     : residual (b - Ax)
-# count : loop count at termination
-#
-# Example:
-# x = iterative_soft_thresholding(A, b, l=1.5, maxiter=1000, tol=linalg.norm(b)*1e-12, nesterovs_momentum=True)
-#
 def iterative_soft_thresholding(A, b, x=None, 
                                 tol=1e-5, maxiter=1000, tolx=1e-12, 
                                 l=1., L=None, eta=2., 
                                 nesterovs_momentum=False, restart_every=np.nan, 
                                 prox=lambda z,l: prox.l1(z,l)):
+    """
+    Iterative soft thresholding algorithm    
+    solves
+    x = arg min_x f(x) + g(x)   where f(x)=0.5||b-Ax||^2, g(x)=l*||x||_1
+      = arg min_x 0.5*|| b - A x ||_2^2 + l' * abs(x)
+
+    Parameters
+    ----------
+    A : m x n matrix, LinearOperator, or tuple (fA, fAT) of lambda functions fA(z)=A.dot(z) and fAT(r)=A.conj().T.dot(r).
+    b : m-dimensional vector.
+    x : initial guess, (A.conj().T.dot(b) by default), will be mdified in this function.
+    tol : tolerance for residual (1e-5 by default)
+    maxiter: max. iterations (1000 by default).
+    tolx : tolerance for x displacement (1e-12 by default).
+    l : barancing parameter lambda (1. by default).
+    L : Lipschitz constant (automatically computed by default).
+    eta : magnification L*=eta in the linear search of L.
+    nesterovs_momentum : Nesterov acceleration (False by default).
+    restart_every: restart the Nesterov acceleration every this number of iterations (disabled by default).
+    prox : proximity operator of g(x), the soft thresholding soft_thresh(z,l) (=prox.l1(z,l)) by default for g(x)=l*||x||_1.
+
+    Returns
+    -------
+    x : sparse solution.
+    r : residual (b - Ax).
+    count : loop count at termination.
+
+    Example
+    -------
+    >>> x = iterative_soft_thresholding(A, b, l=1.5, maxiter=1000, tol=linalg.norm(b)*1e-12, nesterovs_momentum=True)
+    """
 
     # define the functions that compute projections by A and its adjoint
     if type(A) is tuple:
