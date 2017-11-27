@@ -11,13 +11,13 @@ from scipy.sparse.linalg import LinearOperator
 from time import time
 
 
-def _generate_cipher_key(d, seed=None, dtype=np.float64):
+def _generate_cipher_key(d, seed=None, dtype=np.float32):
     if seed is None:
         seed = int(time())
     rng = np.random.RandomState(seed)
     key0 = rng.randn(fftpack.next_fast_len(d)).astype(dtype)   # w
     if np.issubdtype(dtype, np.complexfloating):
-        key0 = key0 + rng.randn(key0.shape[0]).astype(dtype) * 1j
+        key0 = (key0 + rng.randn(key0.shape[0]).astype(dtype) * 1j) * (1./np.sqrt(2.))
     key0 = fftpack.fft(key0)   # w
     key1 = rng.randint(2, size=key0.shape[0]).astype(np.int8)               # s
     key1[key1 == 0] = -1
@@ -30,9 +30,9 @@ def _efficient_random_projection(x, k, key, dtype):
     if dx > maxdim or k > maxdim:
         raise ValueError("Wrong dimensionality")
     sx = np.zeros_like(key[0])
-    sx[:dx] = key[1][:dx] * x
+    sx[:dx] = key[1][:dx] * x  # cast x to key[0].dtype
     sx = fftpack.fft(sx)
-    sx = fftpack.ifft(key[0] * sx.conjugate())[:k] * (np.sqrt(1.0/k))
+    sx = fftpack.ifft(key[0] * sx.conjugate())[:k] * (np.sqrt(1.0/k, dtype=dtype))
     if np.isrealobj(x) and not np.issubdtype(dtype, np.complexfloating):
         return sx.real
     else:
@@ -68,7 +68,7 @@ class RandomProjection:
         If given, random projection returns (`target_dim`,) array by default.
     seed : int, optional, default None
         seed for RandomState
-    dtype : numpy.dtype object, optional, default numpy.float64
+    dtype : numpy.dtype object, optional, default numpy.float32
         Data type object of random numbers
         
     References
@@ -82,7 +82,7 @@ class RandomProjection:
         Acoustics, Speech and Signal Processing (ICASSP),
         2014 IEEE International Conference on. IEEE, 2014.
     """
-    def __init__(self, ambient_dim, target_dim=None, seed=None, dtype=np.float64):
+    def __init__(self, ambient_dim, target_dim=None, seed=None, dtype=np.float32):
         self.dtype = dtype
         self.ambient_dim = ambient_dim
         if target_dim is None:
@@ -147,7 +147,8 @@ if __name__ == '__main__':
     rng = np.random.RandomState()
     d, k = 123456, 256
     dx = d
-    x = rng.randn(dx) #+ 0.j #+ rng.randn(dx)*1.j
+    #x = rng.randn(dx) #+ 0.j #+ rng.randn(dx)*1.j
+    x = rng.randn(dx)
     rp = RandomProjection(d)
 
     y = rp.erp(x,k)
@@ -169,7 +170,8 @@ if __name__ == '__main__':
     relerr = np.zeros(n)
     t0 = time()
     for i in range(n):
-        x = rng.randn(dx)# +0.j#rng.randn(dx)*1.j
+        #x = rng.randn(dx)# +0.j#rng.randn(dx)*1.j
+        x = rng.randn(dx).astype(np.float32)
         p = rp.erp(x, k)
         normx, normp = np.linalg.norm(x), np.linalg.norm(p)
         relerr[i] = (normp - normx) / normx
