@@ -29,4 +29,4 @@ In this case, you can easily uninstall by
 
     python setup.py develop -u
 
-This develper installation is recommended befere we register SPMIB at PyPI to enable pip installation.
+This developer installation is recommended before we register SPMIB at PyPI to enable pip installation.
