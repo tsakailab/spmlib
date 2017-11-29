@@ -1,6 +1,5 @@
-# spmlib
-Sparse Modeling Library
-
+SPMLIB: Sparse Modeling Library
+===============================
 SPMLIB is a Python package for sparse modeling and optimization.
 
 
