@@ -6,7 +6,7 @@ SPMLIB is a Python package for sparse modeling and optimization.
 Installation
 ------------
 
-To install the development version from `GitHub <https://github.com/tsakailab/spmlib>`_ do
+To install the latest version from `GitHub <https://github.com/tsakailab/spmlib>`_ do
 
 ::
 
