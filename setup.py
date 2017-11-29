@@ -20,10 +20,21 @@ def main():
         author_email     ='tsakai@cis.nagasaki-u.ac.jp',
         url              = 'https://github.com/tsakailab/spmlib',
         zip_safe         = False,
-        install_requires = ['numpy', 'scipy', 'matplotlib', 'math', 'time', 'future'],
+        install_requires = ['numpy', 'scipy', 'matplotlib', 'future'],
         packages         = find_packages(),
+        classifiers=[
+        'Development Status :: 2 - Pre-Alpha',
+        'Intended Audience :: Education',
+        'Intended Audience :: Science/Research',
+        'License :: OSI Approved :: MIT License',
+        'Operating System :: OS Independent',
+        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3',
+        'Topic :: Scientific/Engineering :: Information Analysis',
+        'Topic :: Scientific/Engineering :: Mathematics',
+        'Topic :: Software Development :: Libraries :: Python Modules'        
+    ],
     )
-
 
 
 if __name__ == '__main__':
