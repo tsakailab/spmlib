@@ -41,28 +41,28 @@ print('done in %.2fs (%d iter.) by incremental SVD.' % (time() - t0, count))
 print('rank = %d, nonzero sv = ' % (sv_inc.size), sv_inc[sv_inc > np.spacing(np.float32(1.0))])
 
 
-print('====(Deomo: IncSPCP)====')
+print('====(Deomo: OnlSPCP)====')
 t0 = time()
 U_spcp, sv_spcp = np.empty([0,0]), np.empty(0)
 R = rng.rand(m,n-rnk) < 0.1
 print('%d (%.2f %%) entries are corrupted.' % (sum(R.ravel()), 100.0 * sum(R.ravel())/Y.size))
 S = np.zeros_like(Y)
-S[:,rnk:][R] = rng.randn(sum(R.ravel())).astype(dtype)
+S[:,rnk:][R] = 10.0*rng.randn(sum(R.ravel())).astype(dtype)
 Yc = Y + S
 count = 0
 Lest = np.zeros_like(Y)
 Sest = np.zeros_like(Y)
 for j in range(n):
     Lest[:,j], Sest[:,j], U_spcp, sv_spcp, c = sps.OnlSPCP_SCAD(Yc[:,j], U_spcp, sv_spcp,
-                                                   ls=0.05, maxiter=100, switch_to_scad_after=40,
-                                                   rtol=1e-3, rdelta=1e-6, max_rank=20, min_sv=-0.1, update_basis=True)
+                                                   ls=0.05, maxiter=100, switch_to_scad_after=10,
+                                                   rtol=1e-4, rdelta=1e-4, max_rank=20, min_sv=-0.1, update_basis=True, adjust_basis_every=10)
 #    l, Sest[:,j], U_spcp, sv_spcp, c = sps.column_incremental_stable_principal_component_pursuit(
 #                                Yc[:,j], U_spcp, sv_spcp, ls=0.1, update_basis=True, maxiter=100,
 #                                max_rank=20, orth_eps=linalg.norm(Yc[:,j])*1e-12, orthogonalize_basis=True)
 #    print c
     count = count + 1
 
-print('done in %.2fs (%d iter.) by OnlSPCP.' % (time() - t0, count))
+print('done in %.2fs (%d columns) by OnlSPCP.' % (time() - t0, count))
 print('rank = %d, nonzero sv = ' % (sv_spcp.size), sv_spcp[sv_spcp > np.spacing(np.float32(1.0))])
 
 print('rel. error = %.2e' % (linalg.norm(Lest-Y)/linalg.norm(Y)))

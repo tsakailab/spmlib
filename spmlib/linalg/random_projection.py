@@ -110,7 +110,7 @@ class RandomProjection:
             and returns (`ambient_dim`,) array.
         Returns
         -------
-        v : array_like, shape (`target_dim`,) or (`ambient_dim`,)
+        v : ndarray, shape (`target_dim`,) or (`ambient_dim`,)
             Random projection of `u`.
             v.shape is (`ambient_dim`,) if `adjoint` is true.
         """
