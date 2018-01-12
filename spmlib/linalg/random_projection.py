@@ -192,7 +192,7 @@ if __name__ == '__main__':
 
 
     dd, kk = 8, 3
-    rpkd = RandomProjection(dd, kk, seed=80,dtype=np.float64)
+    rpkd = RandomProjection(dd, kk, seed=8111,dtype=np.float64)
     Rkd = np.zeros((kk,dd),dtype=rpkd.dtype)
 
     print("Show random matrix: ")

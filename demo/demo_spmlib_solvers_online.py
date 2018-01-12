@@ -44,7 +44,7 @@ print('rank = %d, nonzero sv = ' % (sv_inc.size), sv_inc[sv_inc > np.spacing(np.
 print('====(Deomo: OnlSPCP)====')
 t0 = time()
 U_spcp, sv_spcp = np.empty([0,0]), np.empty(0)
-R = rng.rand(m,n-rnk) < 0.1
+R = rng.rand(m,n-rnk) < 0.15
 print('%d (%.2f %%) entries are corrupted.' % (sum(R.ravel()), 100.0 * sum(R.ravel())/Y.size))
 S = np.zeros_like(Y)
 S[:,rnk:][R] = 10.0*rng.randn(sum(R.ravel())).astype(dtype)
@@ -55,7 +55,8 @@ Sest = np.zeros_like(Y)
 for j in range(n):
     Lest[:,j], Sest[:,j], U_spcp, sv_spcp, c = sps.OnlSPCP_SCAD(Yc[:,j], U_spcp, sv_spcp,
                                                    ls=0.05, maxiter=100, switch_to_scad_after=10,
-                                                   rtol=1e-4, rdelta=1e-4, max_rank=20, min_sv=-0.1, update_basis=True, adjust_basis_every=10)
+                                                   rtol=1e-4, rdelta=1e-4, max_rank=20, min_sv=-0.1,
+                                                   adjust_basis_every=10, update_basis=True)
 #    l, Sest[:,j], U_spcp, sv_spcp, c = sps.column_incremental_stable_principal_component_pursuit(
 #                                Yc[:,j], U_spcp, sv_spcp, ls=0.1, update_basis=True, maxiter=100,
 #                                max_rank=20, orth_eps=linalg.norm(Yc[:,j])*1e-12, orthogonalize_basis=True)

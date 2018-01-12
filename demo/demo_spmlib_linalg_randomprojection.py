@@ -15,7 +15,7 @@ from spmlib.linalg import RandomProjection
 import timeit
 rng = np.random.RandomState()
 d, k = 2**15, 512
-rp = RandomProjection(d, k)
+rp = RandomProjection(d, k, seed=123)
 x = rng.randn(d).astype(np.float32)
 y = rp.erp(x)
 normx = np.linalg.norm(x)

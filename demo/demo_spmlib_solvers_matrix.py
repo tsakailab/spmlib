@@ -41,7 +41,7 @@ print('Y    = ', Y)
 #print('Yest = ', result.Yest)
 #print('sv = ', result.s)
 a = 3.7
-Yest, U, s = sps.low_rank_matrix_completion(Y, l=1, tol=linalg.norm(Y[~np.isnan(Y)])*1e-6, maxit=100,
+Yest, U, s = sps.low_rank_matrix_completion(Y, l=1, tol=linalg.norm(Y[~np.isnan(Y)])*1e-6, maxiter=100,
                                         prox_rank=lambda Z,thresh: th.soft_svd(Z,thresh,thresholding=lambda s,thresh: th.smoothly_clipped_absolute_deviation(s,thresh,a)))[0:3]
 print('rel. error = %.2e' % (linalg.norm((Yest-Y)[~np.isnan(Y)])/linalg.norm(Y[~np.isnan(Y)])))
 print('Yest = ', Yest)
@@ -64,7 +64,7 @@ R = rng.rand(m,n) < 0.15
 print('%.2f %% entries are given ..' % (100.0 * sum(R.ravel())/R.size))
 
 t0 = time()
-Yest, Uest, sest, Vest, it = sps.low_rank_matrix_completion(Y, R=R, l=1, tol=1e-4*linalg.norm(Y[R]), maxit=100,nesterovs_momentum=True, verbose=10,
+Yest, Uest, sest, Vest, it = sps.low_rank_matrix_completion(Y, R=R, l=1, tol=1e-4*linalg.norm(Y[R]), maxiter=100,nesterovs_momentum=True, verbose=10,
                                                prox_rank=lambda Z,thresh: th.soft_svd(Z,thresh,thresholding=lambda s,thresh: th.smoothly_clipped_absolute_deviation(s,thresh,a)))[:5]
 print('done in %.2fs with %d steps' % (time() - t0, it))
 print('rel. error = %.2e' % (linalg.norm(Yest-Y)/linalg.norm(Y)))

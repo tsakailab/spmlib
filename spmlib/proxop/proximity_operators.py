@@ -78,12 +78,15 @@ def squ_l2_from_subspace(q, l, U):
 
 
 
-def squ_l2(q, l, U=None):
+def squ_l2(q, l, c=None, U=None):
     """
-    arg min_x 0.5*||l.*x||_2^2 + 0.5*||x-q||_2^2 = q ./ (l+1)
+    arg min_x 0.5*||l.*(x-c)||_2^2 + 0.5*||x-q||_2^2 = (q+l.*c) ./ (l+1)
     """
     if U is None:
-        return q / (l+1.)
+        if c is None:
+            return q / (l+1.)
+        else:
+            return (q + l * c) / (l+1.)
     else:
         return squ_l2_from_subspace(q, l, U)
 
