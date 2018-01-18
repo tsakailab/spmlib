@@ -40,7 +40,7 @@ snr = 100. # try 10., 5.. and observe the bias
 A = rng.randn(m, n).astype(dtype) / sqrt(m)  # random design
 
 x_true = np.zeros(n, dtype=dtype)
-T = np.random.permutation(n)[:k]
+T = rng.choice(n,k,replace=False)
 x_true[T] = rng.randn(k).astype(dtype) * stdx
 #x_true[T] = rng.rand(k) * stdx
 #x_true = rng.randn(n)

@@ -12,9 +12,20 @@ from scipy import linalg
 from scipy import sparse as sp
 
 import spmlib.proxop as prox
+import spmlib.thresholding as th
 
 
-def low_rank_matrix_completion(Y, R=None, l=1., rho=1., maxiter=300, rtol=1e-12, tol=1e-5, verbose=False, nesterovs_momentum=False, restart_every = np.nan, prox_rank=lambda Z,l: prox.nuclear(Z,l)):
+
+#%% alias
+import collections
+def LowRankMatrixCompletion(Y, l=1, rho=1., maxit=300, tol=1e-6, verbose=False):
+    result = low_rank_matrix_completion(Y.copy(), l=l, maxiter=maxit, tolr=tol, verbose=verbose)
+    ret = collections.namedtuple('ret', 'Yest, U, s, V, iter')
+    return ret(Yest=result[0], U=result[1], s=result[2], V=result[3], iter=result[4])
+
+
+
+def low_rank_matrix_completion(Y, R=None, l=1., rtol=1e-12, tol=None, rho=1., maxiter=300, verbose=False, nesterovs_momentum=False, restart_every = np.nan, prox_rank=lambda Q,l: prox.nuclear(Q,l)):
     """
     Low-rank matrix completion by ADMM
     solves
@@ -25,17 +36,17 @@ def low_rank_matrix_completion(Y, R=None, l=1., rho=1., maxiter=300, rtol=1e-12,
     Y : array_like, shape (`m`, `n`)
         `m` x `n` matrix to be completed, some of whose entries can be np.nan, meaning "masked (not ovserved)".
     R : array_like, optional, default None
-        `m` x `nc` bool matrix of a mask of Y. False indicates "masked".
+        `m` x `nc` bool matrix of a mask of Y, whose entries True and False indicates "observed" and "masked", respectively.
     l : scalar, optional, default 1.
         Barancing parameter lambda.
+    rtol : scalar, optional, default 1e-12
+        Relative convergence tolerance of `x` and `z` in ADMM.
+    tol : scalar, optional, default None
+        Convergence tolerance of residual.
     rho : scalar, optional, default 1.
         Augmented Lagrangian parameter.
     maxiter : int, optional, default 300
         Maximum iterations.
-    rtol : scalar, optional, default 1e-12
-        Relative convergence torelance of `x` and `z` in ADMM.
-    tol : scalar, optional, default 1e-5
-        Convergence torelance for residual.
     verbose: int or bool, optional, default False
         Print the costs f(X) and g(X) every this number.
     nesterovs_momentum : bool, optional, default False
@@ -43,16 +54,16 @@ def low_rank_matrix_completion(Y, R=None, l=1., rho=1., maxiter=300, rtol=1e-12,
     restart_every : int, optional, default `np.nan`
         Restart the Nesterov acceleration every `restart_every` iterations. If `np.nan`, this is disabled.
     prox_rank: function, optinal, default `spmlib.proxop.nuclear`
-        Proximity operator as a Python function of regularizer g for `Z`. By default, `prox_rank` is `lambda Z,l: prox.nuclear(Z,l)`, i.e., the soft thresholding of singular values of Z.
+        Proximity operator as a Python function for regularizer g, or the matrix rank. By default, `prox_rank` is `lambda Q,l: prox.nuclear(Q,l)`, i.e., the soft thresholding of singular values of Q.
 
     Returns
     -------
-    Yest : (`m`, `n`) ndarray, x.reshape(`m`,`n`) = np.dot(U, np.dot(s, Vh))
+    Yest : (`m`, `n`) ndarray, x.reshape(`m`,`n`) = np.dot(U, np.dot(sv, Vh))
         Low-rank matrix estimate.
     U : ndarray, shape (`M`, `r`) with ``r = min(m, n)``
         Unitary matrix having left singular vectors as columns.
-    s : ndarray, shape (`r`,)
-        The singular values, sorted in non-increasing order.
+    sv : ndarray, shape (`r`,)
+        Singular values, sorted in non-increasing order.
     Vh : ndarray, shape (`r`, `n`)
         Unitary matrix having right singular vectors as rows.
     count : int
@@ -60,10 +71,9 @@ def low_rank_matrix_completion(Y, R=None, l=1., rho=1., maxiter=300, rtol=1e-12,
         
     Example
     -------
-    >>> Yest = low_rank_matrix_completion(Y, R=R, l=1., tol=1e-4*linalg.norm(Y[R]), maxit=100, Nesterov=True, restart_every=100)[0]
+    >>> Yest = low_rank_matrix_completion_F(Y, R=R, l=1., tol=1e-4*linalg.norm(Y[R]), maxiter=100, nesterovs_momentum=True, verbose=10)[0]
     See demo_spmlib_solvers_matrix.py    
     """
-    
     Y = Y.copy()
     # if a bool matrix R (observation) is given, mask Y with False of R
     if R is not None:
@@ -78,6 +88,146 @@ def low_rank_matrix_completion(Y, R=None, l=1., rho=1., maxiter=300, rtol=1e-12,
     #scale = linalg.norm(Y[R].ravel())
     #Y = Y / scale
 
+    #if tol is None:
+    #    tol = rtol * linalg.norm(Y[R].ravel())
+    
+    m, n = Y.shape
+    G = sp.vstack((sp.eye(m*n, format='csr', dtype=Y.dtype)[R.ravel()], sp.eye(m*n, dtype=Y.dtype)))
+    #pinvG = linalg.pinv(G.toarray())
+    # Pseudo inverse of G is explicitly described as 
+    pinvG = np.ones(m*n, dtype=Y.dtype)
+    pinvG[R.ravel()] = 0.5
+    pinvG = sp.diags(pinvG, format='csr') # sp.dia_matrix((pinvG,np.array([0])), shape=())
+    pinvG = sp.hstack((0.5*sp.eye(m*n, format='csr', dtype=Y.dtype)[R.ravel()].T, pinvG))
+
+    # initialize
+    x = np.zeros(m*n, dtype=Y.dtype)
+    z = np.zeros(numObsY+m*n, dtype=Y.dtype)
+    u = np.zeros_like(z) #np.zeros(z.shape, dtype=z.dtype)
+    count = 0
+
+    t = 1. #
+    while count < maxiter:
+        
+        count += 1
+
+        if np.fmod(count, restart_every) == 0: #
+            t = 1.
+        if nesterovs_momentum:
+            told = t
+            t = 0.5 * (1. + sqrt(1. + 4. * t * t))
+
+        # update x
+        dx = x.copy()
+        x = pinvG.dot(z - u)
+        dx = x - dx
+ 
+        Gx = G.dot(x)
+        q = Gx + u
+
+        # update z
+        dz = z.copy() #
+        z[:numObsY] = prox.squ_l2(q[:numObsY], 1/rho, c=Y[R].ravel()) # (rho*q[:numObsY] + Y[R].ravel())/(rho+1.)
+        # z[numObsY:] = soft_svd(q[numObsY:].reshape(m,n,order='F'), w/rho)[0].ravel()
+        L, U, sv, Vh = prox_rank(q[numObsY:].reshape(m,n), l/rho)
+        z[numObsY:] = L.ravel()
+        dz = z - dz #
+
+        # update u
+        du = u.copy() #
+        u = u + Gx - z
+        du = u - du #
+
+        # Nesterov acceleration
+        if nesterovs_momentum:
+            z = z + ((told - 1.) / t) * dz
+            u = u + ((told - 1.) / t) * du
+
+        res = linalg.norm(x[R.ravel()] - Y[R].ravel())
+        tr = np.sum(sv)
+        if verbose:
+            if np.fmod(count,verbose) == 0:
+                print('%2d: 0.5*||R.*(Y-Yest)||_F^2 + l*||Yest||_* = %.2e(%.1f*tol) + %.2e = %.2e' % (count, 0.5*res*res, res/tol, l*tr, 0.5*res*res+l*tr))
+
+        # check convergence
+        if linalg.norm(dx) < rtol * linalg.norm(x) and linalg.norm(dz) < rtol * linalg.norm(z):
+            break
+        if tol is not None:
+            if res < tol:
+                break
+
+    return x.reshape(m,n), U, sv, Vh, count
+
+
+        #%% This is experimental.
+def low_rank_matrix_completion_ind(Y, R=None, tol=None, rtol=1e-12, rho=1., maxiter=300, verbose=False, nesterovs_momentum=False, restart_every = np.nan, prox_rank=lambda Q,l: prox.nuclear(Q,l)):
+    """
+    Low-rank matrix completion
+    solves, by ADMM, 
+    (vecL, [z_LR; z_L]) = arg min_(x,z)  g_LR(z_LR) + g_L(z_L)
+                                s.t. [z_LR; z_L] = [R; I] * vecL.
+    Here, by default,
+    g_LR(z_LR) = indicator function, i.e., zero if ||Y[R] - mat(z_LR)||_F <= tol, infinity otherwise,
+    g_L(z_L) = ||mat(z_L)||_*, i.e., nuclear norm of mat(z_L).
+    
+    Parameters
+    ----------
+    Y : array_like, shape (`m`, `n`)
+        `m` x `n` matrix to be completed, some of whose entries can be np.nan, meaning "masked (not ovserved)".
+    R : array_like, optional, default None
+        `m` x `nc` bool matrix of a mask of Y, whose entries True and False indicates "observed" and "masked", respectively.
+    tol : scalar, optional, default None
+        Tolerance for residual. If None, tol = rtol * (sum of squares of Y[R]).
+    rtol : scalar, optional, default 1e-12
+        Relative convergence tolerance of `x` and `z` in ADMM.
+    rho : scalar, optional, default 1.
+        Augmented Lagrangian parameter.
+    maxiter : int, optional, default 300
+        Maximum iterations.
+    verbose: int or bool, optional, default False
+        Print the residual and nuclear norm every this number.
+    nesterovs_momentum : bool, optional, default False
+        Nesterov acceleration.
+    restart_every : int, optional, default `np.nan`
+        Restart the Nesterov acceleration every `restart_every` iterations. If `np.nan`, this is disabled.
+    prox_rank: function, optinal, default `spmlib.proxop.nuclear`
+        Proximity operator as a Python function for g_L(vecQ), or the rank of `Q`. By default, `prox_rank` is `lambda Q,l: prox.nuclear(Q,l)`, i.e., the soft thresholding of singular values of Q.
+
+    Returns
+    -------
+    Yest : (`m`, `n`) ndarray, x.reshape(`m`,`n`) = np.dot(U, np.dot(sv, Vh))
+        Low-rank matrix estimate.
+    U : ndarray, shape (`M`, `r`) with ``r = min(m, n)``
+        Unitary matrix having left singular vectors as columns.
+    sv : ndarray, shape (`r`,)
+        Singular values, sorted in non-increasing order.
+    Vh : ndarray, shape (`r`, `n`)
+        Unitary matrix having right singular vectors as rows.
+    count : int
+        Loop count at termination.
+        
+    Example
+    -------
+    >>> Yest = low_rank_matrix_completion_ind(Y, R=R, tol=1e-2*linalg.norm(Y[R]), maxiter=100, nesterovs_momentum=True, restart_every=4, verbose=10, rtol=1e-3)[0]
+    See demo_spmlib_solvers_matrix.py    
+    """
+    Y = Y.copy()
+    # if a bool matrix R (observation) is given, mask Y with False of R
+    if R is not None:
+        Y[~R] = np.nan
+    #   NaN in Y is masked
+    Y = np.ma.masked_invalid(Y)
+    numObsY = Y.count()
+    # Y and R are modified to data and mask arrays, respectively.
+    Y, R = Y.data, ~Y.mask
+
+    #l=linalg.norm(Y)/sqrt(Y.size)
+    #scale = linalg.norm(Y[R].ravel())
+    #Y = Y / scale
+
+    if tol is None:
+        tol = rtol * linalg.norm(Y[R].ravel())
+    
     m, n = Y.shape
     G = sp.vstack((sp.eye(m*n, format='csr', dtype=Y.dtype)[R.ravel()], sp.eye(m*n, dtype=Y.dtype)))
     #pinvG = linalg.pinv(G.toarray())
@@ -92,8 +242,7 @@ def low_rank_matrix_completion(Y, R=None, l=1., rho=1., maxiter=300, rtol=1e-12,
     z = np.concatenate( (Y[R].ravel(),np.zeros(m*n, dtype=Y.dtype).ravel()) )
     u = np.zeros_like(z) #np.zeros(z.shape, dtype=z.dtype)
     count = 0
-    res_old = 0.
-    dres = np.inf
+    #w = 1e-4
 
     t = 1. #
     while count < maxiter:
@@ -111,13 +260,16 @@ def low_rank_matrix_completion(Y, R=None, l=1., rho=1., maxiter=300, rtol=1e-12,
         dx = x - dx
  
         Gx = G.dot(x)
-        v = Gx + u
+        q = Gx + u
 
         # update z
         dz = z.copy() #
-        z[:numObsY] = prox.squ_l2(v[:numObsY], 1/rho, c=Y[R].ravel()) # (rho*v[:numObsY] + Y[R].ravel())/(rho+1.)
-        # z[numObsY:] = soft_svd(v[numObsY:].reshape(m,n,order='F'), w/rho)[0].ravel()
-        L, U, s, Vh = prox_rank(v[numObsY:].reshape(m,n), l/rho)
+        #z[:numObsY] = prox.ave_squ_ind_l2ball(q[:numObsY], 1., tol, w, c=Y[R].ravel())
+        #w = w * 1.5;
+        z[:numObsY] = prox.ind_l2ball(q[:numObsY], tol, c=Y[R].ravel())
+        #
+        # z[numObsY:] = soft_svd(q[numObsY:].reshape(m,n,order='F'), w/rho)[0].ravel()
+        L, U, sv, Vh = prox_rank(q[numObsY:].reshape(m,n), 1./rho)
         z[numObsY:] = L.ravel()
         dz = z - dz #
 
@@ -131,29 +283,193 @@ def low_rank_matrix_completion(Y, R=None, l=1., rho=1., maxiter=300, rtol=1e-12,
             z = z + ((told - 1.) / t) * dz
             u = u + ((told - 1.) / t) * du
 
-        res = linalg.norm(x[R.ravel()] - Y[R].ravel())**2
-        tr = np.sum(s)
         if verbose:
             if np.fmod(count,verbose) == 0:
-                print('%2d: 0.5*||R.*(Y-Yest)||_F^2 + l * ||Yest||_* = %.2e + %.2e = %.2e' % (count, 0.5*res, l*tr, 0.5*res+l*tr))
-
-        dres = np.abs(res - res_old)
-        res_old = res
+                res = linalg.norm(x[R.ravel()] - Y[R].ravel())
+                print('%2d: ||R.*(Y-Yest)||_F = %.2e(%.1f*tol), ||Yest||_* = %.2e' % (count, res, res/tol, np.sum(s)))
 
         # check convergence
-        if dres < tol or (linalg.norm(dx) < rtol * linalg.norm(x) and linalg.norm(dz) < rtol * linalg.norm(z)):
+        if linalg.norm(dx) < rtol * linalg.norm(x) and linalg.norm(dz) < rtol * linalg.norm(z):
             break
 
-    return x.reshape(m,n), U, s, Vh, count
+    return x.reshape(m,n), U, sv, Vh, count
 
 
 
-# alias
-import collections
-def LowRankMatrixCompletion(Y, l=1, rho=1., maxit=300, tol=1e-6, verbose=False):
-    result = low_rank_matrix_completion(Y.copy(), l=l, maxiter=maxit, tol=tol, verbose=verbose)
-    ret = collections.namedtuple('ret', 'Yest, U, s, V, iter')
-    return ret(Yest=result[0], U=result[1], s=result[2], V=result[3], iter=result[4])
+def stable_principal_component_pursuit(D, tol=None, ls=None, rtol=1e-12, rho=1., maxiter=300, verbose=False, nesterovs_momentum=False, restart_every = np.nan, 
+                                       prox_LS=lambda q,r,c: prox.ind_l2ball(q,r,c),
+                                       prox_L=lambda Q,l: prox.nuclear(Q,l), 
+                                       prox_S=lambda q,l: prox.l1(q,l)):
+    """
+    Low-rank and sparse matrix approximation (a.k.a. Stable principal component pursuit; SPCP, three-term decomposition; TTD)
+    solves the following minimization problem by ADMM to find low-rank and sparse matrices, L and S, that approximate D as L + S.
+    ([vecL; vecS], [z_LS; z_L; z_S]) = arg min_(x,z) g_LS(z_LS) + g_L(z_L) + g_S(z_S)
+                                s.t. [z_LS; z_L; z_S] = [I I; I O; O I] * [vecL; vecS].
+    Here, by default,
+    g_LS(z_LS) = indicator function, i.e., zero if ||D - mat(z_LS)||_F <= tol, infinity otherwise,
+    g_L(z_L) = ||mat(z_L)||_*, i.e., nuclear norm of mat(z_L),
+    g_S(z_S) = ||ls.*z_S||_1, i.e., l1 norm of mat(z_S) with the weight ls.
+    
+    Parameters
+    ----------
+    Y : array_like, shape (`m`, `n`)
+        `m` x `n` matrix to be completed, some of whose entries can be np.nan, meaning "masked (not ovserved)".
+    R : array_like, optional, default None
+        `m` x `nc` bool matrix of a mask of Y. False indicates "masked".
+    ls : scalar, optional, default None
+        Weight of sparse regularizer.  `ls` can be a vector of weights for each entries of `Z_s`.
+        If None, ls = 1./sqrt(max(D.shape)).
+    tol : scalar, optional, default None
+        Tolerance for residual. If None, tol = rtol * ||D||_F
+    rtol : scalar, optional, default 1e-12
+        Relative convergence tolerance of `x` and `z` in ADMM.
+    rho : scalar, optional, default 1.
+        Augmented Lagrangian parameter.
+    maxiter : int, optional, default 300
+        Maximum iterations.
+    verbose: int or bool, optional, default False
+        Print the costs every this number.
+    nesterovs_momentum : bool, optional, default False
+        Nesterov acceleration.
+    restart_every : int, optional, default `np.nan`
+        Restart the Nesterov acceleration every `restart_every` iterations. If `np.nan`, this is disabled.
+    prox_LS : function, optional, default `spmlib.proxop.ind_l2ball`
+        Proximity operator as a Python function for the regularizer g_LS of `z_LS` = `vecL`+`vecS`. By default, `prox_LS` is `lambda q,r,c:spmlib.proxop.ind_l2ball(q,r,c)`, i.e., the prox. of the indicator function of l2-ball with radius 'r' and center 'c'.
+    prox_L : function, optional, default `spmlib.proxop.squ_l2_from_subspace`
+        Proximity operator as a Python function for the regularizer g_L of `z_L` = `vecL`. By default, `prox_L` is `lambda Q,l:spmlib.proxop.nuclear(Q,1)`, i.e., the prox. of the nuclear norm * l*||mat z_L||_*.
+    prox_S : function, optional, default `spmlib.proxop.l1`
+        Proximity operator as a Python function for the regularizer g_S of `z_S` = `vecS`. By default, `prox_S` is `lambda q,l:spmlib.proxop.l1(q,l)`, i.e., the soft thresholding operator as the prox. of l1 norm ||l.*z_S||_1.
+
+    Returns
+    -------
+    L : (`m`, `n`) ndarray, x[:m].reshape(`m`,`n`) = np.dot(U, np.dot(sv, Vh))
+        Low-rank matrix estimate.
+    S : (`m`, `n`) ndarray, x[m:].reshape(`m`,`n`)
+        Sparse matrix estimate.
+    U : ndarray, shape (`M`, `r`) with ``r = min(m, n)``
+        Unitary matrix having left singular vectors as columns.
+    sv : ndarray, shape (`r`,)
+        Singular values, sorted in non-increasing order.
+    Vh : ndarray, shape (`r`, `n`)
+        Unitary matrix having right singular vectors as rows.
+    count : int
+        Loop count at termination.
+        
+    Example
+    -------
+    >>> stable_principal_component_pursuit(D, ls=1., tol=1e-4*linalg.norm(D), rtol=1e-4, maxiter=300, verbose=10)[0]
+    See demo_spmlib_solvers_matrix.py
+    """
+    m, n = D.shape
+    mn = m*n
+    if ls is None:
+        ls = 1./sqrt(max(D.shape))
+    if tol is None:
+        tol = rtol * linalg.norm(D)
+
+    # initialize
+    x = np.zeros(2*mn, dtype=D.dtype)
+    z = np.zeros(3*mn, dtype=D.dtype)
+    u = np.zeros_like(z)
+    count = 0
+
+    t = 1. #
+    while count < maxiter:
+        count += 1
+
+        if np.fmod(count, restart_every) == 0: #
+            t = 1.
+        if nesterovs_momentum:
+            told = t
+            t = 0.5 * (1. + sqrt(1. + 4. * t * t))
+
+        # update x
+        dx = x.copy()
+        q = z - u
+        x[:mn] = (1./3.) * (q[:mn] + 2.*q[mn:2*mn] - q[2*mn:])
+        x[mn:] = (1./3.) * (q[:mn] - q[mn:2*mn] + 2.*q[2*mn:])
+        dx = x - dx
+ 
+        # q = G(x) + u
+        q[:mn]     = x[:mn] + x[mn:] + u[:mn]
+        q[mn:2*mn] = x[:mn]          + u[mn:2*mn]
+        q[2*mn:]   = x[mn:]          + u[2*mn:]
+
+        # update z
+        dz = z.copy() #
+        z[:mn]    = prox_LS(q[:mn], tol, D.ravel())
+        L, U, sv, Vh = prox_L(q[mn:2*mn].reshape(m,n), 1./rho)
+        z[mn:2*mn] = L.ravel()
+        z[2*mn:]  = prox_S(q[2*mn:], ls/rho)
+        dz = z - dz #
+
+        # update u
+        # u = u + G(x) - z
+        du = u.copy()
+        u[:mn]     += x[:mn] + x[mn:] - z[:mn]
+        u[mn:2*mn] += x[:mn]          - z[mn:2*mn]
+        u[2*mn:]   += x[mn:]          - z[2*mn:]
+        du = u - du
+
+        # Nesterov acceleration
+        if nesterovs_momentum:
+            z = z + ((told - 1.) / t) * dz
+            u = u + ((told - 1.) / t) * du
+
+        if verbose:
+            if np.fmod(count,verbose) == 0:
+                print('%2d: ||D-(L+S)||_F = %.2e, ||L||_* = %.2e (rnk=%d), ||S||_1 = %.2e (nnz=%2.1f%%)' 
+                      % (count, linalg.norm(x[:mn]+x[mn:]-D.ravel()), 
+                         np.sum(sv), np.count_nonzero(sv), 
+                         np.sum(np.abs(x[mn:])), 100.*np.count_nonzero(z[2*mn:])/mn))
+
+        # check convergence
+        if linalg.norm(dx) < rtol * linalg.norm(x) and linalg.norm(dz) < rtol * linalg.norm(z):
+            break
+
+    return x[:mn].reshape(m,n), x[mn:].reshape(m,n), U, sv, Vh, count
 
 
 
+if __name__ == '__main__':
+    from time import time
+    rng = np.random.RandomState()
+
+    print('====(Deomo: SPCP)====')
+
+    dtype = np.float32
+    m, n, rnk = 3000, 500, 10
+    print('D.shape = (%d, %d)' % (m, n))
+    Ut = rng.randn(m, rnk).astype(dtype)  # random design
+    Vt = rng.randn(rnk, n).astype(dtype)  # random design
+    L = Ut.dot(Vt) / sqrt(m)    # rank 10 matrix
+    print('singular values of L =')
+    print(linalg.svd(L, compute_uv=False)[:10])
+    print('mean(abs(L)) = %.2e' % (np.mean(np.abs(L))))
+
+    S = np.zeros_like(L)
+    support = rng.choice(m*n, int(m*n*0.15), replace=False)
+    S.ravel()[support] = 10.*rng.randn(support.size) / sqrt(m) # sparse matrix
+    print('mean(abs(S)) = %.2e, %d nonzeros in S' % (np.mean(np.abs(S)),support.size))
+
+    D = L + S
+    E = rng.randn(m,n) / sqrt(m*n) * linalg.norm(D) * 0.03
+    D += E
+    print('||D||_F = %.2e, ||D-(L+S)||_F = %.2e' % (linalg.norm(D), linalg.norm(E)))
+    
+    t0 = time()
+    Lest, Sest, _, sest, _, it = stable_principal_component_pursuit(D, tol=linalg.norm(E), ls=None, rtol=1e-4, rho=1., maxiter=100, 
+                                                                       verbose=10,
+                                                                       prox_L=lambda Q,l: th.singular_value_thresholding(Q,l,thresholding=th.smoothly_clipped_absolute_deviation),
+                                                                       prox_S=th.smoothly_clipped_absolute_deviation)
+#                                                                       prox_L=lambda Q,l: th.singular_value_thresholding(Q,l,thresholding=th.smoothly_clipped_absolute_deviation),
+#                                                                       prox_L=lambda Q,l: th.soft_svds(Q, l, k=20, tol=1e-1),
+#                                                                       prox_LS=lambda q,r,c: prox.ind_l2ball(q,3.*linalg.norm(D),c),
+
+    np.set_printoptions(suppress=True)
+    print('done in %.2fs with %d steps' % (time() - t0, it))
+    print('rel. error in L: %.2e,  S: %.2e' % (linalg.norm(Lest-L)/linalg.norm(L), linalg.norm(Sest-S)/linalg.norm(S)))
+    print('%d nonzeros in S estimated, mean(abs(S)) = %.2e' % (sum(np.abs(Sest.ravel()) > 1e-2), np.mean(np.abs(Sest))))
+    #print('nonzero sv = ', sest[np.nonzero(sest)])
+    print('nonzero sv = ')
+    print(sest[sest > np.spacing(np.float32(1.0))])

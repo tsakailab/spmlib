@@ -61,7 +61,7 @@ def iterative_soft_thresholding(A, b, x=None,
 
     Parameters
     ----------
-    A : m x n matrix, LinearOperator, or tuple (fA, fAT) of lambda functions fA(z)=A.dot(z) and fAT(r)=A.conj().T.dot(r).
+    A : m x n matrix, LinearOperator, or tuple (fA, fAT) of functions fA(z)=A.dot(z) and fAT(r)=A.conj().T.dot(r).
     b : m-dimensional vector.
     x : initial guess, (A.conj().T.dot(b) by default), will be mdified in this function.
     tol : tolerance for residual (1e-5 by default)

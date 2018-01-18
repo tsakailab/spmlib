@@ -40,7 +40,7 @@ stdx = 1.
 snr = 10.
 
 x_true = np.zeros(n, dtype=dtype)
-T = np.random.permutation(n)[:k]
+T = rng.choice(n,k,replace=False)
 x_true[T] = rng.randn(k).astype(dtype) * stdx
 #x_true = rng.randn(n)
 #x_true[abs(x_true) < 2.5] = 0  ## sparsify

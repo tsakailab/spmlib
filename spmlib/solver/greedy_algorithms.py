@@ -20,7 +20,7 @@ from spmlib.linalg import lstsq, spvec
 #
 # S .G. Mallat and Z. Zhang. "Matching pursuits with time-frequency dictionaries."
 # IEEE TSP 41(12), pp. 3397-3415, 1993.
-def matching_pursuit(A, b, tol=1e-5, maxiter=None):
+def matching_pursuit(A, b, tol=1e-5, maxiter=None, toarray=True):
     m, n = A.shape
     if maxiter is None:
         maxiter = m
@@ -38,7 +38,7 @@ def matching_pursuit(A, b, tol=1e-5, maxiter=None):
         xs = c[s] / linalg.norm(A[:,s])
         xnz.append(xs)
         r -= A[:,s] * xs
-    return spvec(n, xnz, support, duplicate=True), r, count
+    return spvec(n, (xnz, support), duplicate=True, toarray=toarray), r, count
 
 
 
@@ -49,7 +49,7 @@ def matching_pursuit(A, b, tol=1e-5, maxiter=None):
 # The Twenty-Seventh Asilomar Conference on Signals, Systems and Computers, pp. 40-44, 1993.
 #
 # s0 is an initial guess of the support (a set of the indices of nonzeros)
-def orthogonal_matching_pursuit(A, b, s0=None, tol=1e-5, maxnnz=None,
+def orthogonal_matching_pursuit(A, b, s0=None, tol=1e-5, maxnnz=None, toarray=True,
                                 iter_lim=None, solver='eig', atol=1e-3, btol=1e-3, conlim=1e+4):
     m, n = A.shape
     if maxnnz is None:
@@ -71,7 +71,7 @@ def orthogonal_matching_pursuit(A, b, s0=None, tol=1e-5, maxnnz=None,
         support = np.union1d(support, [s])
         xnz, r = lstsq(A, b, support=support,
                        iter_lim=iter_lim, solver=solver, atol=atol, btol=btol, conlim=conlim)
-    return spvec(n, xnz, support), r, count
+    return spvec(n, (xnz, support), toarray=toarray), r, count
 
 
 
@@ -79,7 +79,7 @@ def orthogonal_matching_pursuit(A, b, s0=None, tol=1e-5, maxnnz=None,
 # 
 # J. Wang, S.Kwon, and B. Shim, "Generalized orthogonal matching pursuit",
 # IEEE TSP, 60(12), pp. 6202-6216, 2012.
-def generalized_orthogonal_matching_pursuit(A, b, N=3, s0=None, tol=1e-5, maxnnz=None,
+def generalized_orthogonal_matching_pursuit(A, b, N=3, s0=None, tol=1e-5, maxnnz=None, toarray=True,
                                             iter_lim=None, solver='eig', atol=1e-3, btol=1e-3, conlim=1e+4):
     m, n = A.shape
     if maxnnz is None:
@@ -104,7 +104,7 @@ def generalized_orthogonal_matching_pursuit(A, b, N=3, s0=None, tol=1e-5, maxnnz
                        iter_lim=iter_lim, solver=solver, atol=atol, btol=btol, conlim=conlim)
         # xnz = linalg.lstsq(A[:,T],b)[0]
         #r = b - A.dot(x)
-    return spvec(n, xnz, support), r, count
+    return spvec(n, (xnz, support), toarray=toarray), r, count
 
 
 
@@ -112,7 +112,7 @@ def generalized_orthogonal_matching_pursuit(A, b, N=3, s0=None, tol=1e-5, maxnnz
 # 
 # W. Dai and M. O. Milenkovic, "Subspace pursuit for compressive sensing signal reconstruction",
 # IEEE TIT, 55(5), pp.2230-2249, 2009.
-def subspace_pursuit(A, b, K=None, s0=None, maxiter=None,
+def subspace_pursuit(A, b, K=None, s0=None, maxiter=None, toarray=True,
                      iter_lim=None, solver='eig', atol=1e-3, btol=1e-3, conlim=1e+4):
     m, n = A.shape
     if K is None:
@@ -150,4 +150,4 @@ def subspace_pursuit(A, b, K=None, s0=None, maxiter=None,
         xnzp, r = lstsq(A, b, support=supp,
                         iter_lim=iter_lim, solver=solver, atol=atol, btol=btol, conlim=conlim)
         normr = linalg.norm(r)
-    return spvec(n, xnz, support), r, count
+    return spvec(n, (xnz, support), toarray=toarray), r, count

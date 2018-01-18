@@ -56,9 +56,9 @@ def column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0., orth
 
     Parameters
     ----------
-    C : array_like, shape (`m`, `nc`)
+    C : ndarray, shape (`m`, `nc`)
         `m` x `nc` matrix of column vectors to append.
-    U : array_like, shape (`m`, `r`)
+    U : ndarray, shape (`m`, `r`)
         `m` x `r` matrix of left singular vectors (overwritten with the update).
     sv : array_like, shape(`r`,)
         `r`-dimensional vector of singular values (overwritten with the update).
@@ -121,7 +121,7 @@ def column_incremental_SVD(C, U, sv, forget=1., max_rank=np.inf, min_sv=0., orth
         # rank must not be greater than max_rank, and the singlular values must be greater than min_sv
         r = min(max_rank, sv.size)       # r = min(max_rank, numel(sv));
         sv = sv[:r]                       # sv = sv(1:r);
-        sv = sv[sv>=min_sv] if min_sv >= 0. else sv[sv>=-min_sv*max(sv)]  # sv = sv(sv >= min_sv);
+        sv = sv[sv>=min_sv] if min_sv >= 0. else sv[sv>=-min_sv*np.max(sv)]  # sv = sv(sv >= min_sv);
         r = sv.size                      # ｒ = numel(sv);
         U = np.concatenate((U, Q), 1).dot(UB)    # U = [U, Q] * UB;
         U = U[:,:r]                     # U = U(:,1:r)
@@ -152,12 +152,12 @@ def column_incremental_stable_principal_component_pursuit(c, U, sv,
                         delta=1e-12, ls=1., rho=1., update_basis=False,
                         adjust_basis_every=np.nan, forget=1., max_rank=np.inf, min_sv=0., orth_eps=1e-12, orthogonalize_basis=False,
                         nesterovs_momentum=False, restart_every = np.nan,
-                        prox_ls=lambda z_ls,r,c: prox.ind_l2ball(z_ls,r,c),
-                        prox_l=lambda q,U: prox.squ_l2_from_subspace(q,1.,U), 
+                        prox_ls=lambda q,r,c: prox.ind_l2ball(q,r,c),
+                        prox_l=lambda q,th,U: prox.squ_l2_from_subspace(q,U,th), 
                         prox_s=lambda q,ls: prox.l1(q,ls) ):
     """
     Column incremental online stable principal component pursuit (OnlSPCP)
-    performs the incremental stable principal component pursuit by solving
+    performs the low-rank and sparse matrix approximation by solving
     ([l;s], [zls; zl; zs]) = arg min_(x,z)  g_ls(z_ls) + g_l(z_l) + g_s(z_s)
                                 s.t. [zls; zl; zs] = [I I; I O; O I] * [l; s].
     Here, by default,
@@ -167,9 +167,9 @@ def column_incremental_stable_principal_component_pursuit(c, U, sv,
 
     Parameters
     ----------
-    c : array_like, shape (`m`,)
+    c : ndarray, shape (`m`,)
         `m`-dimensional vector to be decomposed into `l` and `s` such that ||d-(l+s)||_2<=delta.
-    U : array_like, shape (`m`,`r`)
+    U : ndarray, shape (`m`,`r`)
         `m` x `r` matrix of left singular vectors approximately spanning the subspace of low-rank components
         (overwritten with the update if update_basis is True).
     sv : array_like, shape ('r',)
@@ -180,13 +180,13 @@ def column_incremental_stable_principal_component_pursuit(c, U, sv,
     s : array_like, shape (`m`,), optional, default None
         Initial guess of `s`. If None, `s` is numpy.zeros_like(c) is used.
     rtol : scalar, optional, default 1e-12
-        Relative convergence torelance of `x` and `z` in ADMM.
+        Relative convergence tolerance of `x` and `z` in ADMM.
     maxiter : int, optional, default 1000
         Maximum iterations.
     delta : scalar, optional, default 1e-12
         l2-ball radius used in the indicator function for the approximation error.
-    ls : scalar, optional, default 1.
-        Weight of sparse regularizer.  `ls` can be a vector of weights for each entries of `s`.
+    ls : scalar or 1d array, optional, default 1.
+        Weight of sparse regularizer.  `ls` can be a 1d array of weights for the entries of `s`.
     rho : scalar, optional, default 1.
         Augmented Lagrangian parameter.
     update_basis : bool, optional, default False
@@ -208,11 +208,11 @@ def column_incremental_stable_principal_component_pursuit(c, U, sv,
     restart_every : int, optional, default `np.nan`
         Restart the Nesterov acceleration every `restart_every` iterations. If `np.nan`, this is disabled.
     prox_ls : function, optional, default `spmlib.proxop.ind_l2ball`
-        Proximity operator as a Python function of regularizer g_ls for `z_ls` = `l`+`s`. By default, `prox_ls` is `lambda z_ls,r,c:spmlib.proxop.ind_l2ball(z_ls,r,c)`, i.e., the prox. of the indicator function of l2-ball with radius 'r' and center 'c'.
+        Proximity operator as a Python function for the regularizer g_ls of `z_ls` = `l`+`s`. By default, `prox_ls` is `lambda q,r,c:spmlib.proxop.ind_l2ball(q,r,c)`, i.e., the prox. of the indicator function of l2-ball with radius 'r' and center 'c'.
     prox_l : function, optional, default `spmlib.proxop.squ_l2_from_subspace`
-        Proximity operator as a Python function of regularizer g_l for `z_l` = `l`. By default, `prox_l` is `lambda z_l,U:spmlib.proxop.squ_l2_from_subspace(z_l,1.,U)`, i.e., the prox. of the distance function defined as 0.5*(square l2 distance between `l` and span`U`).
+        Proximity operator as a Python function for the regularizer g_l of `z_l` = `l`. By default, `prox_l` is `lambda q,U:spmlib.proxop.squ_l2_from_subspace(q,U,th)`, i.e., the prox. of the distance function defined as 0.5*(squared l2 distance between `l` and span`U`).
     prox_s : function, optional, default `spmlib.proxop.l1`
-        Proximity operator as a Python function of regularizer g_s for `z_s` = `s`. By default, `prox_s` is `lambda z_s,ls:spmlib.proxop.l1(z_s,ls)`, i.e., the soft thresholding operator as the prox. of l1 norm ||ls.*z_s||_1.
+        Proximity operator as a Python function for the regularizer g_s of `z_s` = `s`. By default, `prox_s` is `lambda q,ls:spmlib.proxop.l1(q,ls)`, i.e., the soft thresholding operator as the prox. of l1 norm ||ls.*z_s||_1.
 
     Returns
     -------
@@ -299,8 +299,8 @@ def column_incremental_stable_principal_component_pursuit(c, U, sv,
                                            orth_eps=orth_eps, orthogonalize_basis=False)[0]
         dz = z.copy()
         z[:m]    = prox_ls(q[:m], delta, c.ravel())
-        z[m:2*m] = prox_l(q[m:2*m], Ut)
-        z[2*m:]  = prox_s(q[2*m:], ls)
+        z[m:2*m] = prox_l(q[m:2*m], 1./rho, Ut)
+        z[2*m:]  = prox_s(q[2*m:], ls/rho)
         dz = z - dz
 
         # update y

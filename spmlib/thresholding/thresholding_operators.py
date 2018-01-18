@@ -38,11 +38,99 @@ def hard(z, th):
     return z * (np.abs(z)>th)
 
 
-#%% soft thresholding function compatible with complex values
-def soft_svd(Z, th, thresholding=lambda z,th: soft(z, th)):
-    U, s, V = linalg.svd(Z,full_matrices=False)
-#    return U.dot(np.diag(np.maximum(np.abs(s) - th, 0.)).dot(V)), U, s, V
-    s = thresholding(s, th)
-#    s = soft_thresh(s, th)
-#    s = smoothly_clipped_absolute_deviation(s, th)
-    return U.dot(sp.diags(s).dot(V)), U, s, V
+#%% singular value thresholding
+def singular_value_thresholding(Z, th, thresholding=lambda z,th: soft(z, th)):
+    U, sv, Vh = linalg.svd(Z,full_matrices=False)
+    sv = thresholding(sv, th)
+    r = np.count_nonzero(sv)
+    U = U[:,:r]
+    sv = sv[:r]
+    Vh = Vh[:r,:]
+    return U.dot(sp.diags(sv).dot(Vh)), U, sv, Vh
+
+
+#%% singular value thresholding (svds version)
+import scipy.sparse.linalg as splinalg
+def soft_svds(Z, th, thresholding=lambda z,th: soft(z, th), k=None, tol=0):
+    if k is None:
+        k = min(min(Z.shape), 30)
+    U, sv, Vh = splinalg.svds(splinalg.aslinearoperator(Z), k=k, tol=tol)
+    sv = thresholding(sv, th)
+    return U.dot(sp.diags(sv).dot(Vh)), U, sv, Vh
+
+#svt = singular_value_thresholding
+#scad = smoothly_clipped_absolute_deviation
+
+    
+
+def l2_soft_thresholding(z, th, c=None):
+    """
+    c + soft(||q-c||_2,l)/||q-c||_2 * (q-c)
+    """
+    if c is None:
+        normz = linalg.norm(z)
+        return (soft(normz, th) / normz) * z
+    else:
+        zc = z - c
+        normzc = linalg.norm(zc)
+        return c + (soft(normzc, th) / normzc) * zc
+
+
+def group_soft(z, th, garray, normalize=True):
+    """
+    Group-wise soft threshlding
+        soft(||z(g)||_2, `th`) / ||z(g)||_2 * z(g) for g in `groups`, 
+        i.e., `l2_soft_thresholding(z[g], th)`.
+    Here, `groups` is a list of index lists.
+    The l2 norm of each subvector z(g) shrinks by `th` without changing its direction.
+    The groups (entries of z) must not overlap.
+    If you have the list `groups`, make `garray` = index_groups_to_array(`groups`).
+
+    Note: this function is the proximity operator.
+        arg min_x sum_{g in `groups`}( th*||x(g)||_2 + 0.5*||x(g)-z(g)||_2^2 )
+
+    Parameters
+    ----------
+    z : array_like, shape (`m`,)
+        `m`-dimensional vector to be thresholded group-wise.
+    th : scalar,
+        Threshold.
+    garray : array_like, shape(`m`,)
+        `m`-dimensional vector of group IDs. There are max(garray)+1 groups.
+    normaize : bool, optional, default True
+        If True, the threshold th is scaled by sqrt(number of group members)/sqrt(m) for each subvector z(g).
+
+    Returns
+    -------
+    v : ndarray
+        The thresholded vector.
+    """
+
+    m = z.size
+    v = np.zeros_like(z).ravel()
+    ng = np.max(garray)+1   # number of groups(subvectors)
+    normsz = np.zeros(ng)   # squared norms of subvectors
+    ms = np.zeros(ng)       # numbers of group members (dims. of subvectors)
+    for i in range(m):
+        g = garray.ravel()[i]
+        normsz[g] += z.ravel()[i]*z.ravel()[i]
+        ms[g] += 1
+
+    # compute scales
+    normzsn = normsz.copy()
+    normzsn[normsz == 0.0] = 1.0    # to avoid zero-div
+    normzsn = np.sqrt(normzsn)
+    # thresholding
+    if normalize:
+        #az = np.max(normzsn - np.sqrt(ms) * th / np.sqrt(m), 0.) / normzsn
+        az = soft(normzsn, np.sqrt(ms) * th / np.sqrt(m)) / normzsn
+    else:
+        #az = np.max(normzsn - th, 0.) / normzsn
+        az = soft(normzsn, th) / normzsn
+
+    # scaling
+    for i in range(m):
+        v[i] = z.ravel()[i] * az[garray.ravel()[i]]
+
+    return np.reshape(v, z.shape)
+

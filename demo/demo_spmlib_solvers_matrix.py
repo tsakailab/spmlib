@@ -14,6 +14,7 @@ from time import time
 from spmlib import solver as sps
 from spmlib import thresholding as th
 
+np.set_printoptions(suppress=True)
 
 print('====(Deomo 1: low-rank matrix completion)====')
 #Y = np.array([[     5,      0,      5,      0],
@@ -36,17 +37,22 @@ Y = np.array([[     5,      0,      5,      1],
 #              [     0,      5,      0,      4],
 #              [     4,      0,      5,      0],
 #              [     0,      5,      0,      4]])
-print('Y    = ', Y)
+print('Y = ')
+print(Y)
 #result = LowRankMatrixCompletion(Y, l=1,tol=linalg.norm(Y[~np.isnan(Y)])*1e-6, maxit=100)
 #print('Yest = ', result.Yest)
 #print('sv = ', result.s)
 a = 3.7
-Yest, U, s = sps.low_rank_matrix_completion(Y, l=1, tol=linalg.norm(Y[~np.isnan(Y)])*1e-6, maxiter=100,
-                                        prox_rank=lambda Z,thresh: th.soft_svd(Z,thresh,thresholding=lambda s,thresh: th.smoothly_clipped_absolute_deviation(s,thresh,a)))[0:3]
-print('rel. error = %.2e' % (linalg.norm((Yest-Y)[~np.isnan(Y)])/linalg.norm(Y[~np.isnan(Y)])))
-print('Yest = ', Yest)
-print('sv = ', s)
-
+Yest, _, s, _, it = sps.low_rank_matrix_completion(Y, l=1., rtol=1e-4, tol=linalg.norm(Y[~np.isnan(Y)])*1e-4,
+                                                   maxiter=100, verbose=10,
+                                                   prox_rank=lambda Z,thresh: th.singular_value_thresholding(Z,thresh,thresholding=lambda s,thresh: th.smoothly_clipped_absolute_deviation(s,thresh,a)))
+#Yest, x, s, x, it = sps.low_rank_matrix_completion_ind(Y, tol=linalg.norm(Y[~np.isnan(Y)])*1e-3, maxiter=100, rtol=1e-4, verbose=10,
+#                                        prox_rank=lambda Z,thresh: th.singular_value_thresholding(Z,thresh,thresholding=lambda s,thresh: th.smoothly_clipped_absolute_deviation(s,thresh,a)))
+print('%d steps, rel. error = %.2e' % (it, linalg.norm((Yest-Y)[~np.isnan(Y)])/linalg.norm(Y[~np.isnan(Y)])))
+print('Yest = ')
+print(Yest)
+print('sv = ')
+print(s)
 
 
 print('====(Deomo 2: low-rank matrix completion)====')
@@ -64,9 +70,57 @@ R = rng.rand(m,n) < 0.15
 print('%.2f %% entries are given ..' % (100.0 * sum(R.ravel())/R.size))
 
 t0 = time()
-Yest, Uest, sest, Vest, it = sps.low_rank_matrix_completion(Y, R=R, l=1, tol=1e-4*linalg.norm(Y[R]), maxiter=100,nesterovs_momentum=True, verbose=10,
-                                               prox_rank=lambda Z,thresh: th.soft_svd(Z,thresh,thresholding=lambda s,thresh: th.smoothly_clipped_absolute_deviation(s,thresh,a)))[:5]
+Yest, Uest, sest, Vest, it = sps.low_rank_matrix_completion(Y, R=R, l=1., rtol=1e-4, tol=1e-3*linalg.norm(Y[R]), 
+                                                              maxiter=100, verbose=10, nesterovs_momentum=True, 
+                                                              prox_rank=lambda Z,thresh: th.singular_value_thresholding(Z,thresh,thresholding=lambda s,thresh: th.smoothly_clipped_absolute_deviation(s,thresh,a)))
+#Yest, Uest, sest, Vest, it = sps.low_rank_matrix_completion_ind(Y, R=R, tol=1e-3*linalg.norm(Y[R]), maxiter=100, nesterovs_momentum=False, restart_every=4, verbose=10, rtol=1e-3,
+#                                               prox_rank=lambda Z,thresh: th.singular_value_thresholding(Z,thresh,thresholding=lambda s,thresh: th.smoothly_clipped_absolute_deviation(s,thresh,a)))
 print('done in %.2fs with %d steps' % (time() - t0, it))
 print('rel. error = %.2e' % (linalg.norm(Yest-Y)/linalg.norm(Y)))
 #print(Yest)
-print('nonzero sv = ', sest[np.nonzero(sest)])
+print('nonzero sv = ')
+print(sest[np.nonzero(sest)])
+
+
+
+print('====(Deomo3: SPCP)====')
+
+ng, dim = 3, 1000
+dtype = np.float32
+m, n, rnk = ng*dim, 300, 10
+print('D.shape = (%d, %d)' % (m, n))
+Ut = rng.randn(m, rnk).astype(dtype)  # random design
+Vt = rng.randn(rnk, n).astype(dtype)  # random design
+L = Ut.dot(Vt) / sqrt(m)    # rank 10 matrix
+print('singular values of L =')
+print(linalg.svd(L, compute_uv=False)[:10])
+print('mean(abs(L)) = %.2e' % (np.mean(np.abs(L))))
+
+S = np.zeros((dim, n))
+support = rng.choice(dim*n, int(dim*n*0.15), replace=False)
+S.ravel()[support] = 10.*rng.randn(support.size) / sqrt(dim)
+S = np.tile(S,(ng,1)) # group sparse matrix
+print('mean(abs(S)) = %.2e, %d nonzeros in S' % (np.mean(np.abs(S)),ng*support.size))
+
+D = L + S
+E = rng.randn(m,n) / sqrt(m*n) * linalg.norm(D) * 0.03
+D += E
+print('||D||_F = %.2e, ||D-(L+S)||_F = %.2e' % (linalg.norm(D), linalg.norm(E)))
+    
+t0 = time()
+Lest, Sest, _, sest, _, it = sps.stable_principal_component_pursuit(D, tol=linalg.norm(E), ls=None, rtol=1e-4, rho=1., maxiter=100, 
+                                                                verbose=10,
+                                                                prox_S=lambda q,l: th.group_soft(q,l, np.tile(np.reshape(np.arange(dim*n), (dim,n)), (ng,1)), normalize=False))
+#                                                                       prox_L=lambda Q,l: th.soft_svds(Q, l, k=20, tol=1e-1),
+#                                                                       prox_L=lambda Q,l: th.singular_value_thresholding(Q,l,thresholding=th.smoothly_clipped_absolute_deviation),
+#                                                                       prox_LS=lambda q,r,c: prox.ind_l2ball(q,3.*linalg.norm(D),c),
+#                                                                       prox_S=th.smoothly_clipped_absolute_deviation)
+
+np.set_printoptions(suppress=True)
+print('done in %.2fs with %d steps' % (time() - t0, it))
+print('rel. error in L: %.2e,  S: %.2e' % (linalg.norm(Lest-L)/linalg.norm(L), linalg.norm(Sest-S)/linalg.norm(S)))
+print('%d nonzeros in S estimated, mean(abs(S)) = %.2e' % (sum(np.abs(Sest.ravel()) > 1e-2), np.mean(np.abs(Sest))))
+#print('nonzero sv = ', sest[np.nonzero(sest)])
+print('nonzero sv = ')
+print(sest[sest > np.spacing(np.float32(1.0))])
+
