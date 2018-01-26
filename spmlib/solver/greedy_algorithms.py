@@ -9,7 +9,8 @@ import numpy as np
 from scipy import linalg
 import scipy.sparse.linalg as splinalg
 
-from spmlib.linalg import lstsq, spvec
+from spmlib.linalg import lstsq
+from spmlib.util import spvec
 
 
 # todo: return nonzero only, then OMP makes it spvec
@@ -79,8 +80,8 @@ def orthogonal_matching_pursuit(A, b, s0=None, tol=1e-5, maxnnz=None, toarray=Tr
 # 
 # J. Wang, S.Kwon, and B. Shim, "Generalized orthogonal matching pursuit",
 # IEEE TSP, 60(12), pp. 6202-6216, 2012.
-def generalized_orthogonal_matching_pursuit(A, b, N=3, s0=None, tol=1e-5, maxnnz=None, toarray=True,
-                                            iter_lim=None, solver='eig', atol=1e-3, btol=1e-3, conlim=1e+4):
+def generalized_orthogonal_matching_pursuit(A, b, s0=None, tol=1e-5, maxnnz=None, toarray=True,
+                                            iter_lim=None, solver='eig', atol=1e-3, btol=1e-3, conlim=1e+4, N=3):
     m, n = A.shape
     if maxnnz is None:
         maxnnz = m // 2

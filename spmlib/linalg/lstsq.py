@@ -8,6 +8,7 @@ Created on Thu Apr 27 08:42:11 2017
 import numpy as np
 from scipy import linalg
 import scipy.sparse.linalg as splinalg
+from spmlib.util import spvec
 
 
 
@@ -36,7 +37,7 @@ def lstsq(A, B, support=None, x0=None, iter_lim=None, solver='eig', atol=1e-3, b
     else:
         # Assuming A to be a linear operator, create a linear operator of A[:,ls]
         #A = splinalg.aslinearoperator(A)
-        As = splinalg.LinearOperator((A.shape[0],len(ls)), matvec=lambda xnz: A.matvec(spvec(A.shape[1],xnz,ls)), rmatvec=lambda y: A.rmatvec(y)[ls])
+        As = splinalg.LinearOperator((A.shape[0],len(ls)), matvec=lambda xnz: A.matvec(spvec(A.shape[1],(xnz,ls))), rmatvec=lambda y: A.rmatvec(y)[ls])
 
         if iter_lim is None:
             iter_lim = s

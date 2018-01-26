@@ -153,7 +153,7 @@ def l21(Q, l=1):
         The proximal matrix.
     """
     P = np.zeros_like(Q)
-    if np.array(l).size is 1:
+    if np.array(l).size == 1:
         for i in range(Q.shape[0]):
             P[i,:] = th.l2_soft_thresholding(Q[i,:], l)
     else:
@@ -170,5 +170,5 @@ def l21(Q, l=1):
 #%% EXPERIMENTAL
 # 1/(1+w)*(prox.squ_l2(q,l,c) + w*prox.ind_l2ball(q,r,c))
 def ave_squ_ind_l2ball(q, l, r, w, c=None):
-    return 1./(1.+w) * (prox.squ_l2(q, l, c) + w * prox.ind_l2ball(q, r, c))
+    return 1./(1.+w) * (squ_l2(q, l, c) + w * ind_l2ball(q, r, c))
 

@@ -16,6 +16,8 @@ from spmlib import thresholding as th
 
 np.set_printoptions(suppress=True)
 
+
+
 print('====(Deomo 1: low-rank matrix completion)====')
 #Y = np.array([[     5,      0,      5,      0],
 #              [     0, np.nan, np.nan,      4],
@@ -96,25 +98,50 @@ print('singular values of L =')
 print(linalg.svd(L, compute_uv=False)[:10])
 print('mean(abs(L)) = %.2e' % (np.mean(np.abs(L))))
 
-S = np.zeros((dim, n))
+S = np.zeros((dim, n),dtype=dtype)
 support = rng.choice(dim*n, int(dim*n*0.15), replace=False)
 S.ravel()[support] = 10.*rng.randn(support.size) / sqrt(dim)
 S = np.tile(S,(ng,1)) # group sparse matrix
 print('mean(abs(S)) = %.2e, %d nonzeros in S' % (np.mean(np.abs(S)),ng*support.size))
 
 D = L + S
-E = rng.randn(m,n) / sqrt(m*n) * linalg.norm(D) * 0.03
+E = rng.randn(m,n).astype(dtype) / sqrt(m*n) * linalg.norm(D) * 0.03
 D += E
 print('||D||_F = %.2e, ||D-(L+S)||_F = %.2e' % (linalg.norm(D), linalg.norm(E)))
-    
+
+
+
+#from numba import jit
+#@jit
+def l2_soft(q,l,dim,n):
+    numelQ = dim*n
+    #sf = np.zeros(3,dtype=q.dtype)
+    p = np.zeros_like(q)
+    for i in range(numelQ):
+        a = sqrt(q[i]*q[i]+q[i+numelQ]*q[i+numelQ]+q[i+2*numelQ]*q[i+2*numelQ]) + 2e-16
+        #a = sqrt(sum(sf*sf))
+        #if a != 0.:
+        #    a = max(a-l, 0.) / a
+        #a = sqrt(sum(sf*sf)) + 2e-16
+        a = max(a-l, 0.) / a
+        p[i] = a * q[i]
+        p[i+numelQ] = a * q[i+numelQ]
+        p[i+2*numelQ] = a * q[i+2*numelQ]
+
+    return p
+
+
+#import spmlib.proxop as prox
+#import spmlib.thresholding._jit as th_jit
 t0 = time()
 Lest, Sest, _, sest, _, it = sps.stable_principal_component_pursuit(D, tol=linalg.norm(E), ls=None, rtol=1e-4, rho=1., maxiter=100, 
                                                                 verbose=10,
-                                                                prox_S=lambda q,l: th.group_soft(q,l, np.tile(np.reshape(np.arange(dim*n), (dim,n)), (ng,1)), normalize=False))
-#                                                                       prox_L=lambda Q,l: th.soft_svds(Q, l, k=20, tol=1e-1),
-#                                                                       prox_L=lambda Q,l: th.singular_value_thresholding(Q,l,thresholding=th.smoothly_clipped_absolute_deviation),
-#                                                                       prox_LS=lambda q,r,c: prox.ind_l2ball(q,3.*linalg.norm(D),c),
-#                                                                       prox_S=th.smoothly_clipped_absolute_deviation)
+                                                                prox_L=lambda Q,l: th.singular_value_thresholding(Q,2*l,thresholding=th.smoothly_clipped_absolute_deviation),
+#                                                                prox_L=lambda Q,l: th.soft_svds(Q, l, k=20, tol=1e-1),
+#                                                                prox_LS=lambda q,r,c: prox.ind_l2ball(q,3.*linalg.norm(D),c),
+#                                                                prox_S=lambda q,l: l2_soft(q,l,dim,n))
+#                                                                prox_S=lambda q,l: th_jit.group_scad(q,2*l, np.tile(np.reshape(np.arange(dim*n), (dim,n)), (ng,1)), normalize=False))
+                                                                prox_S=th.smoothly_clipped_absolute_deviation)
 
 np.set_printoptions(suppress=True)
 print('done in %.2fs with %d steps' % (time() - t0, it))

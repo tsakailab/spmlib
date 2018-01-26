@@ -62,25 +62,28 @@ def soft_svds(Z, th, thresholding=lambda z,th: soft(z, th), k=None, tol=0):
 #scad = smoothly_clipped_absolute_deviation
 
     
-
-def l2_soft_thresholding(z, th, c=None):
+def l2_soft(z, th, c=None, thresholding=soft):
     """
     c + soft(||q-c||_2,l)/||q-c||_2 * (q-c)
     """
     if c is None:
         normz = linalg.norm(z)
-        return (soft(normz, th) / normz) * z
+        if normz == 0.0:
+            return np.zeros_like(z)
+        return (thresholding(normz, th) / normz) * z
     else:
         zc = z - c
         normzc = linalg.norm(zc)
-        return c + (soft(normzc, th) / normzc) * zc
+        if normzc == 0.0:
+            return np.zeros_like(z)
+        return c + (thresholding(normzc, th) / normzc) * zc
 
 
-def group_soft(z, th, garray, normalize=True):
+def group_soft(z, th, garray, normalize=True, thresholding=soft):
     """
     Group-wise soft threshlding
         soft(||z(g)||_2, `th`) / ||z(g)||_2 * z(g) for g in `groups`, 
-        i.e., `l2_soft_thresholding(z[g], th)`.
+        i.e., `l2_soft(z[g], th)`.
     Here, `groups` is a list of index lists.
     The l2 norm of each subvector z(g) shrinks by `th` without changing its direction.
     The groups (entries of z) must not overlap.
@@ -107,13 +110,13 @@ def group_soft(z, th, garray, normalize=True):
     """
 
     m = z.size
-    v = np.zeros_like(z).ravel()
     ng = np.max(garray)+1   # number of groups(subvectors)
     normsz = np.zeros(ng)   # squared norms of subvectors
     ms = np.zeros(ng)       # numbers of group members (dims. of subvectors)
+    vecz = z.ravel()
     for i in range(m):
         g = garray.ravel()[i]
-        normsz[g] += z.ravel()[i]*z.ravel()[i]
+        normsz[g] += vecz[i]*vecz[i]
         ms[g] += 1
 
     # compute scales
@@ -123,14 +126,17 @@ def group_soft(z, th, garray, normalize=True):
     # thresholding
     if normalize:
         #az = np.max(normzsn - np.sqrt(ms) * th / np.sqrt(m), 0.) / normzsn
-        az = soft(normzsn, np.sqrt(ms) * th / np.sqrt(m)) / normzsn
+        az = thresholding(normzsn, np.sqrt(ms) * th / np.sqrt(m)) / normzsn
     else:
         #az = np.max(normzsn - th, 0.) / normzsn
-        az = soft(normzsn, th) / normzsn
+        az = thresholding(normzsn, th) / normzsn
 
     # scaling
+    v = np.zeros_like(z)
+    vecv = v.ravel()
+    vecg = garray.ravel()
     for i in range(m):
-        v[i] = z.ravel()[i] * az[garray.ravel()[i]]
+        vecv[i] = vecz[i] * az[vecg[i]]
 
-    return np.reshape(v, z.shape)
+    return v
 

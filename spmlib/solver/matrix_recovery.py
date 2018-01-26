@@ -159,7 +159,8 @@ def low_rank_matrix_completion(Y, R=None, l=1., rtol=1e-12, tol=None, rho=1., ma
     return x.reshape(m,n), U, sv, Vh, count
 
 
-        #%% This is experimental.
+
+#%% This is experimental.
 def low_rank_matrix_completion_ind(Y, R=None, tol=None, rtol=1e-12, rho=1., maxiter=300, verbose=False, nesterovs_momentum=False, restart_every = np.nan, prox_rank=lambda Q,l: prox.nuclear(Q,l)):
     """
     Low-rank matrix completion
@@ -286,7 +287,7 @@ def low_rank_matrix_completion_ind(Y, R=None, tol=None, rtol=1e-12, rho=1., maxi
         if verbose:
             if np.fmod(count,verbose) == 0:
                 res = linalg.norm(x[R.ravel()] - Y[R].ravel())
-                print('%2d: ||R.*(Y-Yest)||_F = %.2e(%.1f*tol), ||Yest||_* = %.2e' % (count, res, res/tol, np.sum(s)))
+                print('%2d: ||R.*(Y-Yest)||_F = %.2e(%.1f*tol), ||Yest||_* = %.2e' % (count, res, res/tol, np.sum(sv)))
 
         # check convergence
         if linalg.norm(dx) < rtol * linalg.norm(x) and linalg.norm(dz) < rtol * linalg.norm(z):
@@ -453,7 +454,7 @@ if __name__ == '__main__':
     print('mean(abs(S)) = %.2e, %d nonzeros in S' % (np.mean(np.abs(S)),support.size))
 
     D = L + S
-    E = rng.randn(m,n) / sqrt(m*n) * linalg.norm(D) * 0.03
+    E = rng.randn(m,n).astype(dtype) / sqrt(m*n) * linalg.norm(D) * 0.03
     D += E
     print('||D||_F = %.2e, ||D-(L+S)||_F = %.2e' % (linalg.norm(D), linalg.norm(E)))
     
