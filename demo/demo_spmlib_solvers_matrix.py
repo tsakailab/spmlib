@@ -105,18 +105,20 @@ S = np.tile(S,(ng,1)) # group sparse matrix
 print('mean(abs(S)) = %.2e, %d nonzeros in S' % (np.mean(np.abs(S)),ng*support.size))
 
 D = L + S
-E = rng.randn(m,n).astype(dtype) / sqrt(m*n) * linalg.norm(D) * 0.03
+noisep = 0.03
+E = rng.randn(m,n).astype(dtype) / sqrt(m*n) * linalg.norm(D) * noisep
 D += E
 print('||D||_F = %.2e, ||D-(L+S)||_F = %.2e' % (linalg.norm(D), linalg.norm(E)))
 
 
 
-#from numba import jit
-#@jit
-def l2_soft(q,l,dim,n):
+#from numba import jit, prange
+#@jit(nopython=True,nogil=True,parallel=True)
+def sf_soft(q,l,dim,n):
     numelQ = dim*n
     #sf = np.zeros(3,dtype=q.dtype)
     p = np.zeros_like(q)
+#    for i in prange(numelQ):
     for i in range(numelQ):
         a = sqrt(q[i]*q[i]+q[i+numelQ]*q[i+numelQ]+q[i+2*numelQ]*q[i+2*numelQ]) + 2e-16
         #a = sqrt(sum(sf*sf))
@@ -133,15 +135,17 @@ def l2_soft(q,l,dim,n):
 
 #import spmlib.proxop as prox
 #import spmlib.thresholding._jit as th_jit
+#import spmlib.thresholding as th_jit
 t0 = time()
 Lest, Sest, _, sest, _, it = sps.stable_principal_component_pursuit(D, tol=linalg.norm(E), ls=None, rtol=1e-4, rho=1., maxiter=100, 
-                                                                verbose=10,
-                                                                prox_L=lambda Q,l: th.singular_value_thresholding(Q,2*l,thresholding=th.smoothly_clipped_absolute_deviation),
-#                                                                prox_L=lambda Q,l: th.soft_svds(Q, l, k=20, tol=1e-1),
+                                                                verbose=10)
+#                                                                prox_L=lambda Q,l: th.singular_value_thresholding(Q,2*l,thresholding=th_jit.smoothly_clipped_absolute_deviation),
+#                                                                prox_L=lambda Q,l: th.svt_svds(Q, l, k=13, tol=1e-1, thresholding=th_jit.smoothly_clipped_absolute_deviation),
 #                                                                prox_LS=lambda q,r,c: prox.ind_l2ball(q,3.*linalg.norm(D),c),
-#                                                                prox_S=lambda q,l: l2_soft(q,l,dim,n))
+#                                                                prox_S=lambda q,l: sf_soft(q,l,dim,n))
 #                                                                prox_S=lambda q,l: th_jit.group_scad(q,2*l, np.tile(np.reshape(np.arange(dim*n), (dim,n)), (ng,1)), normalize=False))
-                                                                prox_S=th.smoothly_clipped_absolute_deviation)
+#                                                                prox_S=lambda q,l: th_jit.group_scad(q,l*np.sqrt(dim*m,dtype=np.float32), np.tile(np.reshape(np.arange(dim*n), (dim,n)), (ng,1)), normalize=True))
+#                                                                prox_S=lambda q,l: th_jit.smoothly_clipped_absolute_deviation(q,l))
 
 np.set_printoptions(suppress=True)
 print('done in %.2fs with %d steps' % (time() - t0, it))

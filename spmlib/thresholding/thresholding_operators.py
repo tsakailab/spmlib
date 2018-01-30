@@ -19,16 +19,16 @@ def sgn(z):
 
 #%% soft thresholding function compatible with complex values
 def soft(z, th):
-    return sgn(z) * np.maximum(np.abs(z) - th, 0.)
+    return sgn(z) * np.maximum(np.abs(z) - th, 0)
 
 
 #%% smoothly clipped absolute deviation (SCAD) [Fan&Li, 01]
 def smoothly_clipped_absolute_deviation(z, th, a=3.7):
     scad = z.copy()
     absz = np.abs(z)
-    idx = absz <= 2.*th
+    idx = absz <= 2*th
     scad[idx] = soft(z[idx], th)
-    idx = np.logical_and(absz > 2.*th, absz <= a*th)
+    idx = np.logical_and(absz > 2*th, absz <= a*th)
     scad[idx] = ((a - 1) * z[idx] - sgn(z[idx]) * a * th) / (a - 2)
     return scad
 
@@ -51,7 +51,7 @@ def singular_value_thresholding(Z, th, thresholding=lambda z,th: soft(z, th)):
 
 #%% singular value thresholding (svds version)
 import scipy.sparse.linalg as splinalg
-def soft_svds(Z, th, thresholding=lambda z,th: soft(z, th), k=None, tol=0):
+def svt_svds(Z, th, thresholding=lambda z,th: soft(z, th), k=None, tol=0):
     if k is None:
         k = min(min(Z.shape), 30)
     U, sv, Vh = splinalg.svds(splinalg.aslinearoperator(Z), k=k, tol=tol)
@@ -140,3 +140,6 @@ def group_soft(z, th, garray, normalize=True, thresholding=soft):
 
     return v
 
+
+def group_scad(z, th, garray, normalize=True, a=3.7):
+    return group_soft(z, th, garray, normalize=normalize, thresholding=lambda x,t: smoothly_clipped_absolute_deviation(x,t,a=a))

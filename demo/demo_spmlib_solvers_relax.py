@@ -92,6 +92,35 @@ plt.legend(loc='upper right', shadow=False)
 plt.show()
 
 
+"""
+from spmlib.thresholding import _jit as th_jit
+from numba import jit
+@jit('f4[:](f4[:])',nopython=True,nogil=True,cache=True)
+def fA(x):
+    return np.dot(A,x)
+@jit('f4[:](f4[:])',nopython=True,nogil=True,cache=True)
+def fAT(y):
+    return np.dot(A.T,y)
+
+# FISTA with jit (naive use to obtain biased solution)
+print("Running FISTA")
+t0 = time()
+result_FISTA_jit = sps.fista((fA,fAT), b, tol=tol, l=l, tolx=linalg.norm(A.T.dot(b))*1e-5, maxiter=1000, prox=th_jit.soft)
+x_est = result_FISTA_jit[0]
+print('done in %.2fs.' % (time() - t0))
+print('# nonzeros = %d' % (np.count_nonzero(x_est)))
+#print('supprt = ')
+#print(np.nonzero(x_est)[0])
+print('rel. error of x = %.2e' % (linalg.norm(x_est-x_true)/linalg.norm(x_true)))
+print('rel. reconst. error = %.2e' % (linalg.norm(A.dot(x_est)-b_true)/normb))
+
+plt.figure()
+#plt.stem(x_true, markerfmt='g.')
+plt.plot(np.arange(n), x_true, 'g.', markersize=8, mec='green', label='True')
+plt.plot(np.arange(n), x_est, 'ro', mfc = 'None', markersize=8, mec='red', label='Estimated')
+plt.legend(loc='upper right', shadow=False)
+plt.show()
+"""
 
 # FISTA followed by LS debias (a neat use)
 print("Running FISTA as support estimation followed by nonzero estimation via LS debias..")
@@ -134,6 +163,8 @@ plt.plot(np.arange(n), x_true, 'g.', markersize=8, mec='green', label='True')
 plt.plot(np.arange(n), x_est, 'ro', mfc = 'None', markersize=8, mec='red', label='Estimated')
 plt.legend(loc='upper right', shadow=False)
 plt.show()
+
+
 
 
 
