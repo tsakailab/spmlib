@@ -93,7 +93,7 @@ plt.show()
 print("Running OMP..")
 t0 = time()
 result_OMP = sps.orthogonal_matching_pursuit(A, b, tol=tol)
-#result_OMP = sps.orthogonal_matching_pursuit(splinalg.aslinearoperator(A), b, tol=tol)
+#result_OMP = sps.orthogonal_matching_pursuit_using_linearoperator(splinalg.aslinearoperator(A), b, tol=tol)
 #result_OMP = OMP(A, b, tol=linalg.norm(b)*1e-4, max_nnz=100)
 x_est = result_OMP[0]
 print('done in %.2fs.' % (time() - t0))

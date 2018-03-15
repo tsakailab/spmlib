@@ -180,7 +180,7 @@ def column_incremental_stable_principal_component_pursuit(c, U, sv,
     s : array_like, shape (`m`,), optional, default None
         Initial guess of `s`. If None, `s` is numpy.zeros_like(c) is used.
     rtol : scalar, optional, default 1e-12
-        Relative convergence tolerance of `x` and `z` in ADMM.
+        Relative convergence tolerance of `y` and `z` in ADMM, i.e., the primal and dual residuals.
     maxiter : int, optional, default 1000
         Maximum iterations.
     delta : scalar, optional, default 1e-12
@@ -281,11 +281,11 @@ def column_incremental_stable_principal_component_pursuit(c, U, sv,
             t = 0.5 * (1. + sqrt(1. + 4. * t * t))
 
         # update x
-        dx = x.copy()
+        #dx = x.copy()
         q = z - y
         x[:m] = (1./3.) * (q[:m] + 2.*q[m:2*m] - q[2*m:])
         x[m:] = (1./3.) * (q[:m] - q[m:2*m] + 2.*q[2*m:])
-        dx = x - dx
+        #dx = x - dx
         
         # q = G(x) + y
         q[:m]    = x[:m] + x[m:] + y[:m]
@@ -316,8 +316,8 @@ def column_incremental_stable_principal_component_pursuit(c, U, sv,
             z = z + ((told - 1.) / t) * dz
             y = y + ((told - 1.) / t) * dy
         
-        # check convergence
-        if linalg.norm(dx) < rtol * linalg.norm(x) and linalg.norm(dz) < rtol * linalg.norm(z):
+        # check convergence of primal and dual residuals
+        if linalg.norm(dy) < rtol * linalg.norm(y) and linalg.norm(dz) < rtol * linalg.norm(z):
             break
         
     l = x[:m]

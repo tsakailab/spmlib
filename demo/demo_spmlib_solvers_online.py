@@ -59,7 +59,7 @@ Sest = np.zeros_like(D)
 for j in range(n):
     Lest[:,j], Sest[:,j], U_spcp, sv_spcp, c = sps.OnlSPCP_SCAD(D[:,j], U_spcp, sv_spcp,
                                                    ls=0.05, maxiter=100, switch_to_scad_after=10,
-                                                   rtol=1e-4, rdelta=1e-4, max_rank=20, min_sv=-0.1,
+                                                   rtol=1e-3, rdelta=1e-4, max_rank=20, min_sv=-0.1,
                                                    adjust_basis_every=10, update_basis=True)
 #    l, Sest[:,j], U_spcp, sv_spcp, c = sps.column_incremental_stable_principal_component_pursuit(
 #                                D[:,j], U_spcp, sv_spcp, ls=0.1, update_basis=True, maxiter=100,

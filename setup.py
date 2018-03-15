@@ -20,7 +20,7 @@ def main():
         author_email     ='tsakai@cis.nagasaki-u.ac.jp',
         url              = 'https://github.com/tsakailab/spmlib',
         zip_safe         = False,
-        install_requires = ['numpy', 'scipy', 'matplotlib', 'future'],
+        install_requires = ['numpy', 'scipy>=0.19.1', 'matplotlib', 'future'],
         packages         = find_packages(),
         classifiers=[
         'Development Status :: 2 - Pre-Alpha',

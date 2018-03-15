@@ -66,13 +66,15 @@ def orthogonal_matching_pursuit(A, b, s0=None, tol=1e-5, maxnnz=None, toarray=Tr
 
     # main loop
     count = 0
+    order = []
     while len(support) < maxnnz and linalg.norm(r) > tol:
         count += 1
         s = np.argmax(np.abs( splinalg.aslinearoperator(A).rmatvec(r) ))
         support = np.union1d(support, [s])
+        order.append(s)
         xnz, r = lstsq(A, b, support=support,
                        iter_lim=iter_lim, solver=solver, atol=atol, btol=btol, conlim=conlim)
-    return spvec(n, (xnz, support), toarray=toarray), r, count
+    return spvec(n, (xnz, support), toarray=toarray), r, count, order
 
 
 
@@ -152,3 +154,48 @@ def subspace_pursuit(A, b, K=None, s0=None, maxiter=None, toarray=True,
                         iter_lim=iter_lim, solver=solver, atol=atol, btol=btol, conlim=conlim)
         normr = linalg.norm(r)
     return spvec(n, (xnz, support), toarray=toarray), r, count
+
+
+
+
+#%% Orthogonal matching pursuit (OMP)
+#
+# Y. C. Pati, R. Rezaiifar, and P. S. Krishnaprasad, 
+# "Orthogonal matching pursuit: Recursive function approximation with applications to wavelet decomposition."
+# The Twenty-Seventh Asilomar Conference on Signals, Systems and Computers, pp. 40-44, 1993.
+#
+# s0 is an initial guess of the support (a set of the indices of nonzeros)
+def orthogonal_matching_pursuit_using_linearoperator(A, b, s0=None, tol=1e-5, maxnnz=None, toarray=True,
+                                 iter_lim=None, solver='eig', atol=1e-3, btol=1e-3, conlim=1e+4):
+    m, n = A.shape
+    if maxnnz is None:
+        maxnnz = m // 2
+    if s0 is None or len(s0) == 0:
+        support = np.array([], dtype=int)
+        xnz = np.array([])
+        r = b.copy()
+    else:
+        As = np.zeros((m,len(support)), dtype=A.dtype)
+        support = np.array(s0, dtype=int)
+        h = np.zeros(n)
+        for s in support:
+            h = np.zeros(n)
+            h[s] = 1.0
+            As[:,s] = A.matvec(h)
+        xnz, r = lstsq(As, b, solver=solver)
+
+    # main loop
+    count = 0
+    order = []
+    As = np.empty((m,0), dtype=A.dtype)
+    while len(support) < maxnnz and linalg.norm(r) > tol:
+        count += 1
+        s = np.argmax(np.abs( splinalg.aslinearoperator(A).rmatvec(r) ))
+        support = np.union1d(support, [s])
+        order.append(s)
+        h = np.zeros(n)
+        h[s] = 1.0
+        As = np.append(As, np.atleast_2d(A.matvec(h)).T, axis=1)
+        xnz, r = lstsq(As, b, solver=solver)
+
+    return spvec(n, (xnz, order), toarray=toarray), r, count, order, As

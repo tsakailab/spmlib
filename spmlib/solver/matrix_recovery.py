@@ -40,7 +40,7 @@ def low_rank_matrix_completion(Y, R=None, l=1., rtol=1e-12, tol=None, rho=1., ma
     l : scalar, optional, default 1.
         Barancing parameter lambda.
     rtol : scalar, optional, default 1e-12
-        Relative convergence tolerance of `x` and `z` in ADMM.
+        Relative convergence tolerance of `u` and `z` in ADMM, i.e., the primal and dual residuals.
     tol : scalar, optional, default None
         Convergence tolerance of residual.
     rho : scalar, optional, default 1.
@@ -118,9 +118,9 @@ def low_rank_matrix_completion(Y, R=None, l=1., rtol=1e-12, tol=None, rho=1., ma
             t = 0.5 * (1. + sqrt(1. + 4. * t * t))
 
         # update x
-        dx = x.copy()
+        #dx = x.copy()
         x = pinvG.dot(z - u)
-        dx = x - dx
+        #dx = x - dx
  
         Gx = G.dot(x)
         q = Gx + u
@@ -149,8 +149,8 @@ def low_rank_matrix_completion(Y, R=None, l=1., rtol=1e-12, tol=None, rho=1., ma
             if np.fmod(count,verbose) == 0:
                 print('%2d: 0.5*||R.*(Y-Yest)||_F^2 + l*||Yest||_* = %.2e(%.1f*tol) + %.2e = %.2e' % (count, 0.5*res*res, res/tol, l*tr, 0.5*res*res+l*tr))
 
-        # check convergence
-        if linalg.norm(dx) < rtol * linalg.norm(x) and linalg.norm(dz) < rtol * linalg.norm(z):
+        # check convergence of primal and dual residuals
+        if linalg.norm(du) < rtol * linalg.norm(u) and linalg.norm(dz) < rtol * linalg.norm(z):
             break
         if tol is not None:
             if res < tol:
@@ -161,7 +161,7 @@ def low_rank_matrix_completion(Y, R=None, l=1., rtol=1e-12, tol=None, rho=1., ma
 
 
 #%% This is experimental.
-def low_rank_matrix_completion_ind(Y, R=None, tol=None, rtol=1e-12, rho=1., maxiter=300, verbose=False, nesterovs_momentum=False, restart_every = np.nan, prox_rank=lambda Q,l: prox.nuclear(Q,l)):
+def low_rank_matrix_completion_ind(Y, R=None, rtol=1e-12, tol=None, rho=1., maxiter=300, verbose=False, nesterovs_momentum=False, restart_every = np.nan, prox_rank=lambda Q,l: prox.nuclear(Q,l)):
     """
     Low-rank matrix completion
     solves, by ADMM, 
@@ -177,10 +177,10 @@ def low_rank_matrix_completion_ind(Y, R=None, tol=None, rtol=1e-12, rho=1., maxi
         `m` x `n` matrix to be completed, some of whose entries can be np.nan, meaning "masked (not ovserved)".
     R : array_like, optional, default None
         `m` x `nc` bool matrix of a mask of Y, whose entries True and False indicates "observed" and "masked", respectively.
+    rtol : scalar, optional, default 1e-12
+        Relative convergence tolerance of `u` and `z` in ADMM, i.e., the primal and dual residuals.
     tol : scalar, optional, default None
         Tolerance for residual. If None, tol = rtol * (sum of squares of Y[R]).
-    rtol : scalar, optional, default 1e-12
-        Relative convergence tolerance of `x` and `z` in ADMM.
     rho : scalar, optional, default 1.
         Augmented Lagrangian parameter.
     maxiter : int, optional, default 300
@@ -256,9 +256,9 @@ def low_rank_matrix_completion_ind(Y, R=None, tol=None, rtol=1e-12, rho=1., maxi
             t = 0.5 * (1. + sqrt(1. + 4. * t * t))
 
         # update x
-        dx = x.copy()
+        #dx = x.copy()
         x = pinvG.dot(z - u)
-        dx = x - dx
+        #dx = x - dx
  
         Gx = G.dot(x)
         q = Gx + u
@@ -289,8 +289,8 @@ def low_rank_matrix_completion_ind(Y, R=None, tol=None, rtol=1e-12, rho=1., maxi
                 res = linalg.norm(x[R.ravel()] - Y[R].ravel())
                 print('%2d: ||R.*(Y-Yest)||_F = %.2e(%.1f*tol), ||Yest||_* = %.2e' % (count, res, res/tol, np.sum(sv)))
 
-        # check convergence
-        if linalg.norm(dx) < rtol * linalg.norm(x) and linalg.norm(dz) < rtol * linalg.norm(z):
+        # check convergence of primal and dual residuals
+        if linalg.norm(du) < rtol * linalg.norm(u) and linalg.norm(dz) < rtol * linalg.norm(z):
             break
 
     return x.reshape(m,n), U, sv, Vh, count
@@ -323,7 +323,7 @@ def stable_principal_component_pursuit(D, tol=None, ls=None, rtol=1e-12, rho=1.,
     tol : scalar, optional, default None
         Tolerance for residual. If None, tol = rtol * ||D||_F
     rtol : scalar, optional, default 1e-12
-        Relative convergence tolerance of `x` and `z` in ADMM.
+        Relative convergence tolerance of `u` and `z` in ADMM, i.e., the primal and dual residuals.
     rho : scalar, optional, default 1.
         Augmented Lagrangian parameter.
     maxiter : int, optional, default 300
@@ -385,11 +385,11 @@ def stable_principal_component_pursuit(D, tol=None, ls=None, rtol=1e-12, rho=1.,
             t = 0.5 * (1. + sqrt(1. + 4. * t * t))
 
         # update x
-        dx = x.copy()
+        #dx = x.copy()
         q = z - u
         x[:mn] = (1./3.) * (q[:mn] + 2.*q[mn:2*mn] - q[2*mn:])
         x[mn:] = (1./3.) * (q[:mn] - q[mn:2*mn] + 2.*q[2*mn:])
-        dx = x - dx
+        #dx = x - dx
  
         # q = G(x) + u
         q[:mn]     = x[:mn] + x[mn:] + u[:mn]
@@ -424,8 +424,8 @@ def stable_principal_component_pursuit(D, tol=None, ls=None, rtol=1e-12, rho=1.,
                          np.sum(sv), np.count_nonzero(sv), 
                          np.sum(np.abs(x[mn:])), 100.*np.count_nonzero(z[2*mn:])/mn))
 
-        # check convergence
-        if linalg.norm(dx) < rtol * linalg.norm(x) and linalg.norm(dz) < rtol * linalg.norm(z):
+        # check convergence of primal and dual residuals
+        if linalg.norm(du) < rtol * linalg.norm(u) and linalg.norm(dz) < rtol * linalg.norm(z):
             break
 
     return x[:mn].reshape(m,n), x[mn:].reshape(m,n), U, sv, Vh, count
@@ -459,7 +459,7 @@ if __name__ == '__main__':
     print('||D||_F = %.2e, ||D-(L+S)||_F = %.2e' % (linalg.norm(D), linalg.norm(E)))
     
     t0 = time()
-    Lest, Sest, _, sest, _, it = stable_principal_component_pursuit(D, tol=linalg.norm(E), ls=None, rtol=1e-4, rho=1., maxiter=100, 
+    Lest, Sest, _, sest, _, it = stable_principal_component_pursuit(D, tol=linalg.norm(E), ls=None, rtol=1e-2, rho=1, maxiter=100,
                                                                        verbose=10,
                                                                        prox_L=lambda Q,l: th.singular_value_thresholding(Q,l,thresholding=th.smoothly_clipped_absolute_deviation),
                                                                        prox_S=th.smoothly_clipped_absolute_deviation)

@@ -137,7 +137,7 @@ def sf_soft(q,l,dim,n):
 #import spmlib.thresholding._jit as th_jit
 #import spmlib.thresholding as th_jit
 t0 = time()
-Lest, Sest, _, sest, _, it = sps.stable_principal_component_pursuit(D, tol=linalg.norm(E), ls=None, rtol=1e-4, rho=1., maxiter=100, 
+Lest, Sest, _, sest, _, it = sps.stable_principal_component_pursuit(D, tol=linalg.norm(E), ls=None, rtol=1e-2, rho=1., maxiter=100, 
                                                                 verbose=10)
 #                                                                prox_L=lambda Q,l: th.singular_value_thresholding(Q,2*l,thresholding=th_jit.smoothly_clipped_absolute_deviation),
 #                                                                prox_L=lambda Q,l: th.svt_svds(Q, l, k=13, tol=1e-1, thresholding=th_jit.smoothly_clipped_absolute_deviation),

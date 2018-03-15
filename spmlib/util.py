@@ -14,8 +14,8 @@ def _toarray1d(n, nz, duplicate=False):
     nonzeros = np.array(nz[0])
     v = np.zeros(n, dtype=nonzeros.dtype)
     if not duplicate:
-        v = np.zeros(n, dtype=nonzeros.dtype)
-        v[nz[1]] = nonzeros
+#        v = np.zeros(n, dtype=nonzeros.dtype)
+        v[nz[1]] = nonzeros.ravel()
     else:
         # because spv[support] += nonzeros doesn't work as expected ..
         j = 0
