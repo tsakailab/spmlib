@@ -213,8 +213,12 @@ def low_rank_matrix_completion_ind(Y, R=None, rtol=1e-12, tol=None, rho=1., maxi
     See demo_spmlib_solvers_matrix.py    
     """
     Y = Y.copy()
+    m, n = Y.shape
     # if a bool matrix R (observation) is given, mask Y with False of R
     if R is not None:
+#        z = Y.copy().ravel()
+#        if not np.isfinite(Y[~R]).all():
+#            z = np.zeros(m*n, dtype=Y.dtype)
         Y[~R] = np.nan
     #   NaN in Y is masked
     Y = np.ma.masked_invalid(Y)
@@ -229,7 +233,6 @@ def low_rank_matrix_completion_ind(Y, R=None, rtol=1e-12, tol=None, rho=1., maxi
     if tol is None:
         tol = rtol * linalg.norm(Y[R].ravel())
     
-    m, n = Y.shape
     G = sp.vstack((sp.eye(m*n, format='csr', dtype=Y.dtype)[R.ravel()], sp.eye(m*n, dtype=Y.dtype)))
     #pinvG = linalg.pinv(G.toarray())
     # Pseudo inverse of G is explicitly described as 
@@ -241,6 +244,7 @@ def low_rank_matrix_completion_ind(Y, R=None, rtol=1e-12, tol=None, rho=1., maxi
     # initialize
     x = np.zeros(m*n, dtype=Y.dtype)
     z = np.concatenate( (Y[R].ravel(),np.zeros(m*n, dtype=Y.dtype).ravel()) )
+#    z = np.concatenate( (Y[R].ravel(), z) )
     u = np.zeros_like(z) #np.zeros(z.shape, dtype=z.dtype)
     count = 0
     #w = 1e-4
@@ -390,7 +394,7 @@ def stable_principal_component_pursuit(D, tol=None, ls=None, rtol=1e-12, rho=1.,
         x[:mn] = (1./3.) * (q[:mn] + 2.*q[mn:2*mn] - q[2*mn:])
         x[mn:] = (1./3.) * (q[:mn] - q[mn:2*mn] + 2.*q[2*mn:])
         #dx = x - dx
- 
+
         # q = G(x) + u
         q[:mn]     = x[:mn] + x[mn:] + u[:mn]
         q[mn:2*mn] = x[:mn]          + u[mn:2*mn]
@@ -404,6 +408,12 @@ def stable_principal_component_pursuit(D, tol=None, ls=None, rtol=1e-12, rho=1.,
         z[2*mn:]  = prox_S(q[2*mn:], ls/rho)
         dz = z - dz #
 
+        if nesterovs_momentum:
+           # update x again (heuristic)
+           q = z - u
+           x[:mn] = (1./3.) * (q[:mn] + 2.*q[mn:2*mn] - q[2*mn:])
+           x[mn:] = (1./3.) * (q[:mn] - q[mn:2*mn] + 2.*q[2*mn:])
+
         # update u
         # u = u + G(x) - z
         du = u.copy()
@@ -414,8 +424,8 @@ def stable_principal_component_pursuit(D, tol=None, ls=None, rtol=1e-12, rho=1.,
 
         # Nesterov acceleration
         if nesterovs_momentum:
-            z = z + ((told - 1.) / t) * dz
-            u = u + ((told - 1.) / t) * du
+#            z = z + ((told - 1.) / t) * dz
+            u = u + ((told - 1.) / t) * du    # update u only (heuristic)
 
         if verbose:
             if np.fmod(count,verbose) == 0:
@@ -459,7 +469,7 @@ if __name__ == '__main__':
     print('||D||_F = %.2e, ||D-(L+S)||_F = %.2e' % (linalg.norm(D), linalg.norm(E)))
     
     t0 = time()
-    Lest, Sest, _, sest, _, it = stable_principal_component_pursuit(D, tol=linalg.norm(E), ls=None, rtol=1e-2, rho=1, maxiter=100,
+    Lest, Sest, _, sest, _, it = stable_principal_component_pursuit(D, tol=linalg.norm(E), ls=None, rtol=1e-2, rho=1, maxiter=100, nesterovs_momentum=False,
                                                                        verbose=10,
                                                                        prox_L=lambda Q,l: th.singular_value_thresholding(Q,l,thresholding=th.smoothly_clipped_absolute_deviation),
                                                                        prox_S=th.smoothly_clipped_absolute_deviation)

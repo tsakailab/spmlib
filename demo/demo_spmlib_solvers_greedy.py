@@ -35,9 +35,10 @@ dtype = np.float32
 A = rng.randn(m, n).astype(dtype) / sqrt(m)  # random design
 
 # generate a k-sparse Gaussian signal vector
-k = 200
+#k = 200
+k = m//8
 stdx = 1.
-snr = 10.
+snr = 20.
 
 x_true = np.zeros(n, dtype=dtype)
 T = rng.choice(n,k,replace=False)

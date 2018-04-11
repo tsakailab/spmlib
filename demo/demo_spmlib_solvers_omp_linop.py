@@ -27,8 +27,8 @@ from spmlib.linalg import RandomProjection
 rng = np.random.RandomState(int(time()))
 #m, n = 512, 2048
 #m, n = 1024, 8192
-m, n = 2048, 8192*32
-m, n = 2048, 500000
+#m, n = 2048, 8192*32
+m, n = 2048, 100000
 dtype = np.float32
 
 

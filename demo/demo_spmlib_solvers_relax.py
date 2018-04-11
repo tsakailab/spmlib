@@ -34,7 +34,7 @@ dtype = np.float32
 # generate a k-sparse Gaussian signal vector
 k = m//8
 stdx = 1.
-snr = 100. # try 10., 5.. and observe the bias
+snr = 20. # try 10., 5.. and observe the bias
 
 # use a random matrix as a basis (design matrix)
 A = rng.randn(m, n).astype(dtype) / sqrt(m)  # random design
@@ -125,7 +125,7 @@ plt.show()
 # FISTA followed by LS debias (a neat use)
 print("Running FISTA as support estimation followed by nonzero estimation via LS debias..")
 t0 = time()
-result_FISTA_debias = sps.fista(A, b, tol=tol, l=l, tolx=linalg.norm(A.T.dot(b))*1e-5, maxiter=50, debias=True)
+result_FISTA_debias = sps.fista(A, b, tol=tol, l=l, tolx=linalg.norm(A.T.dot(b))*1e-5, maxiter=1000, debias=True)
 x_est = result_FISTA_debias[0]
 print('done in %.2fs.' % (time() - t0))
 print('# nonzeros = %d' % (np.count_nonzero(x_est)))
@@ -164,6 +164,29 @@ plt.plot(np.arange(n), x_est, 'ro', mfc = 'None', markersize=8, mec='red', label
 plt.legend(loc='upper right', shadow=False)
 plt.show()
 
+
+from spmlib import proxop as prox
+from spmlib import thresholding as th
+# CoD
+print("Running CoD..")
+t0 = time()
+result_CoD = sps.greedy_coordinate_descent(A, b, tol=tol, l=l, tolx=linalg.norm(A.T.dot(b))*1e-5, maxiter=1000,
+                                           N=30, prox=th.smoothly_clipped_absolute_deviation)
+x_est = result_CoD[0]
+print('done in %.2fs.' % (time() - t0))
+print('# nonzeros = %d' % (np.count_nonzero(x_est)))
+#print('supprt = ')
+#print(np.nonzero(x_est)[0])
+print('rel. error of x = %.2e' % (linalg.norm(x_est-x_true)/linalg.norm(x_true)))
+print('rel. reconst. error = %.2e' % (linalg.norm(A.dot(x_est)-b_true)/normb))
+
+
+plt.figure()
+#plt.stem(x_true, markerfmt='g.')
+plt.plot(np.arange(n), x_true, 'g.', markersize=8, mec='green', label='True')
+plt.plot(np.arange(n), x_est, 'ro', mfc = 'None', markersize=8, mec='red', label='Estimated')
+plt.legend(loc='upper right', shadow=False)
+plt.show()
 
 
 

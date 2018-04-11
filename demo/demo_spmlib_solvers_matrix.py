@@ -73,9 +73,9 @@ print('%.2f %% entries are given ..' % (100.0 * sum(R.ravel())/R.size))
 
 t0 = time()
 Yest, Uest, sest, Vest, it = sps.low_rank_matrix_completion(Y, R=R, l=1., rtol=1e-4, tol=1e-3*linalg.norm(Y[R]), 
-                                                              maxiter=100, verbose=10, nesterovs_momentum=True, 
+                                                              maxiter=10, verbose=10, nesterovs_momentum=True, 
                                                               prox_rank=lambda Z,thresh: th.singular_value_thresholding(Z,thresh,thresholding=lambda s,thresh: th.smoothly_clipped_absolute_deviation(s,thresh,a)))
-#Yest, Uest, sest, Vest, it = sps.low_rank_matrix_completion_ind(Y, R=R, tol=1e-3*linalg.norm(Y[R]), maxiter=100, nesterovs_momentum=False, restart_every=4, verbose=10, rtol=1e-3,
+#Yest, Uest, sest, Vest, it = sps.low_rank_matrix_completion_ind(Y, R=R, tol=1e-3*linalg.norm(Y[R]), maxiter=100, nesterovs_momentum=False, restart_every=4, verbose=10, rtol=1e-2,
 #                                               prox_rank=lambda Z,thresh: th.singular_value_thresholding(Z,thresh,thresholding=lambda s,thresh: th.smoothly_clipped_absolute_deviation(s,thresh,a)))
 print('done in %.2fs with %d steps' % (time() - t0, it))
 print('rel. error = %.2e' % (linalg.norm(Yest-Y)/linalg.norm(Y)))
@@ -137,7 +137,7 @@ def sf_soft(q,l,dim,n):
 #import spmlib.thresholding._jit as th_jit
 #import spmlib.thresholding as th_jit
 t0 = time()
-Lest, Sest, _, sest, _, it = sps.stable_principal_component_pursuit(D, tol=linalg.norm(E), ls=None, rtol=1e-2, rho=1., maxiter=100, 
+Lest, Sest, _, sest, _, it = sps.stable_principal_component_pursuit(D, tol=linalg.norm(E), ls=None, rtol=1e-2, rho=1., maxiter=100, nesterovs_momentum=True,
                                                                 verbose=10)
 #                                                                prox_L=lambda Q,l: th.singular_value_thresholding(Q,2*l,thresholding=th_jit.smoothly_clipped_absolute_deviation),
 #                                                                prox_L=lambda Q,l: th.svt_svds(Q, l, k=13, tol=1e-1, thresholding=th_jit.smoothly_clipped_absolute_deviation),
