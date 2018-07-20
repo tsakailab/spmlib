@@ -30,3 +30,9 @@ In this case, you can easily uninstall by
     python setup.py develop -u
 
 This developer installation is recommended before we register SPMLIB at PyPI to enable pip installation.
+
+
+Demonstration
+-------------
+
+You can run the demonstration codes in spmlib/demo if correctly installed.
