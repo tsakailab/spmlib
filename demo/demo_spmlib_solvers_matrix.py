@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+    # -*- coding: utf-8 -*-
 """
 Created on Mon Aug 21 19:36:00 2017
 
@@ -29,16 +29,26 @@ print('====(Deomo 1: low-rank matrix completion)====')
 #              [np.nan,      4,      0, np.nan],
 #              [     0,      0,      5,      4],
 #              [     0,      0,      5, np.nan]])
-Y = np.array([[     5,      0,      5,      1],
-              [np.nan,      0,      4, np.nan],
-              [     0,      5,      0,      4],
-              [     4, np.nan, np.nan,      0],
-              [     0,      5,      0, np.nan]])
+#Y = np.array([[     5,      0,      5,      1],
+#              [np.nan,      0,      4, np.nan],
+#              [     0,      5,      0,      4],
+#              [     4, np.nan, np.nan,      0],
+#              [     0,      5,      0, np.nan]])
 #Y = np.array([[     5,      0,      5,      1],
 #              [     4,      0,      4,      1],
 #              [     0,      5,      0,      4],
 #              [     4,      0,      5,      0],
 #              [     0,      5,      0,      4]])
+Y = np.array([[     4,      0,      5,      1],
+              [np.nan,      0,      4, np.nan],
+              [     0,      5,      0,      4],
+              [     4, np.nan, np.nan,      0],
+              [     0,      4,      0, np.nan]])
+#Y = np.array([[     4,      0,      5,      1],
+#              [     3,      0,      4,      1],
+#              [     0,      5,      0,      4],
+#              [     4,      0,      5,      0],
+#              [     0,      4,      0,      3]])
 print('Y = ')
 print(Y)
 #result = LowRankMatrixCompletion(Y, l=1,tol=linalg.norm(Y[~np.isnan(Y)])*1e-6, maxit=100)

@@ -207,7 +207,7 @@ def greedy_coordinate_descent(A, b, x=None,
 
         z = prox(c, l)
         dx = z - x
-        s = np.argsort(-np.abs(dx))[:N]
+        s = np.argsort(-np.abs(dx))[:N]  # multiple coordinate choice (tsakai heuristic)
         #s = np.argmax(np.abs(dx))
 
         dxs = np.zeros_like(dx)
