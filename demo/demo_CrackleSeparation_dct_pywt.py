@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Wed Dec  6 15:37:33 2017
+Created on Fri Jul 27 14:02:00 2018
 
-@author: tmiura
+@author: tsakai@cis.nagasaki-u.ac.jp
 """
+
 import os
 import matplotlib.pyplot as plt
 import numpy as np
@@ -167,7 +168,7 @@ def LSDecompFW(wav, width= 16384, max_nnz_rate=0.03, sparsify = 0.01, eta = 2, w
     return  signal_dct,signal_wl,c,c_list
     ###############################
 if __name__ == '__main__':
-#    filepath = './080180500_5k'
+
     filepath = './TRACK63_11k'
     signal_dct,signal_dwt,c,c_list=run_LSdecompFW(filename = filepath, wl_weight=0.5, level=3, maxiter=60, max_nnz_rate=0.5)
     
