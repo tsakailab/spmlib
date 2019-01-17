@@ -90,4 +90,4 @@ def ind_l0ball(x, r, c=None):
 
 
 def nuclear(Q):
-    np.sum(linalg.svd(Q, compute_uv=False))
+    return np.sum(linalg.svd(Q, compute_uv=False))
