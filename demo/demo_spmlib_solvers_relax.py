@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+    # -*- coding: utf-8 -*-
 """
 Created on Mon Mar 20 13:16:41 2017
 
@@ -65,6 +65,34 @@ plt.close('all')
 
 import numpy as np
 from scipy import linalg
+
+
+
+# BP delta
+print("Running BP_delta")
+t0 = time()
+result_BPd = sps.basis_pursuit_delta(A, b, delta=linalg.norm(noise)*2, rtol=1e-4, maxiter=1000, nesterovs_momentum=True)
+#result_BPd = sps.BPdelta_scad(A, b, delta=linalg.norm(noise)*2, rtol=1e-4, maxiter=60, nesterovs_momentum=True, switch_to_scad_after = 60)
+
+x_est = result_BPd[0]
+itr = result_BPd[2]
+print('done in %.2fs. with %d loops' % (time() - t0, itr))
+print('# nonzeros = %d' % (np.count_nonzero(x_est)))
+#print('supprt = ')
+#print(np.nonzero(x_est)[0])
+print('rel. error of x = %.2e' % (linalg.norm(x_est-x_true)/linalg.norm(x_true)))
+print('rel. reconst. error = %.2e' % (linalg.norm(A.dot(x_est)-b_true)/normb))
+print("norm(noise) = %.2e, norm(residual) = %1.2e" % (linalg.norm(noise), linalg.norm(A.dot(x_est)-b_true)))
+
+plt.figure()
+#plt.stem(x_true, markerfmt='g.')
+plt.plot(np.arange(n), x_true, 'g.', markersize=8, mec='green', label='True')
+plt.plot(np.arange(n), x_est, 'ro', mfc = 'None', markersize=8, mec='red', label='Estimated')
+plt.legend(loc='upper right', shadow=False)
+plt.show()
+
+
+
 
 
 

@@ -48,6 +48,19 @@ def fista_scad(A, b, x=None, tol=1e-5, maxiter=1000, tolx=1e-12,
 
 
 
+def BPdelta_scad(A, b, x=None, delta=None, maxiter=1000, rtol=1e-4, alpha=None, rho=1., eta=2., nesterovs_momentum=True, restart_every=np.nan, a=3.7, switch_to_scad_after = 0,
+                                                 prox=lambda z,l: prox.l1(z,l), prox_loss=lambda z,delta: prox.ind_l2ball(z,delta)):
+    # BPdelta up to switch_to_scad_after times to find good initial guess with bias
+    if switch_to_scad_after > 0:
+        x = basis_pursuit_delta(A, b, x=x, delta=delta, maxiter=switch_to_scad_after, rtol=rtol, alpha=alpha, rho=rho, eta=eta,
+                                nesterovs_momentum=nesterovs_momentum, restart_every=restart_every, prox_loss=prox_loss)[0]
+
+    # BPdelta with SCAD thresholding to debias
+    return basis_pursuit_delta(A, b, x=x, delta=delta, maxiter=maxiter, rtol=rtol, alpha=alpha, rho=rho, eta=eta, nesterovs_momentum=nesterovs_momentum, #restart_every=restart_every,
+                                       prox=lambda z,thresh: th.smoothly_clipped_absolute_deviation(z,thresh,a=a))
+
+
+
 def iterative_soft_thresholding(A, b, x=None, 
                                 tol=1e-5, maxiter=1000, tolx=1e-12, 
                                 l=1., L=None, eta=2., 
@@ -64,9 +77,9 @@ def iterative_soft_thresholding(A, b, x=None,
     A : m x n matrix, LinearOperator, or tuple (fA, fAT) of functions fA(z)=A.dot(z) and fAT(r)=A.conj().T.dot(r).
     b : m-dimensional vector.
     x : initial guess, (A.conj().T.dot(b) by default), will be mdified in this function.
-    tol : tolerance for residual (1e-5 by default)
-    maxiter: max. iterations (1000 by default).
-    tolx : tolerance for x displacement (1e-12 by default).
+    tol : tolerance for residual (1e-5 by default) as a stopping criterion.
+    maxiter: max. iterations (1000 by default) as a stopping criterion.
+    tolx : tolerance for x displacement (1e-12 by default) as a stopping criterion.
     l : barancing parameter lambda (1. by default).
     L : Lipschitz constant (automatically computed by default).
     eta : magnification L*=eta in the linear search of L.
@@ -82,7 +95,7 @@ def iterative_soft_thresholding(A, b, x=None,
 
     Example
     -------
-    >>> x = iterative_soft_thresholding(A, b, l=1.5, maxiter=1000, tol=linalg.norm(b)*1e-12, nesterovs_momentum=True)
+    >>> x = iterative_soft_thresholding(A, b, l=1.5, maxiter=1000, tol=linalg.norm(b)*1e-12, nesterovs_momentum=True)[0]
     """
 
     # define the functions that compute projections by A and its adjoint
@@ -161,9 +174,9 @@ def greedy_coordinate_descent(A, b, x=None,
     A : m x n matrix, LinearOperator, or tuple (fA, fAT) of functions fA(z)=A.dot(z) and fAT(r)=A.conj().T.dot(r).
     b : m-dimensional vector.
     x : initial guess, (A.conj().T.dot(b) by default), will be mdified in this function.
-    tol : tolerance for residual (1e-5 by default)
-    maxiter: max. iterations (1000 by default).
-    tolx : tolerance for x displacement (1e-12 by default).
+    tol : tolerance for residual (1e-5 by default) as a stopping criterion.
+    maxiter: max. iterations (1000 by default) as a stopping criterion.
+    tolx : tolerance for x displacement (1e-12 by default) as a stopping criterion.
     l : barancing parameter lambda (1. by default).
     nesterovs_momentum : Nesterov acceleration (False by default).
     restart_every: restart the Nesterov acceleration every this number of iterations (disabled by default).
@@ -178,7 +191,7 @@ def greedy_coordinate_descent(A, b, x=None,
 
     Example
     -------
-    >>> x = greedy_coordinate_descent(A, b, l=1.5, maxiter=1000, tol=linalg.norm(b)*1e-12, N=3)
+    >>> x = greedy_coordinate_descent(A, b, l=1.5, maxiter=1000, tol=linalg.norm(b)*1e-12, N=3)[0]
     """
 
     # define the functions that compute projections by A and its adjoint
@@ -242,3 +255,129 @@ def greedy_coordinate_descent(A, b, x=None,
             print('CoD(): Overflow.')
 
     return x, r, count
+
+
+
+def basis_pursuit_delta(A, b, x=None, 
+                                delta=None, maxiter=1000, rtol=1e-4, 
+                                alpha=None, rho=1., eta=2.,
+                                nesterovs_momentum=False, restart_every=np.nan, 
+                                prox=lambda z,l: prox.l1(z,l), prox_loss=lambda z,delta: prox.ind_l2ball(z,delta)):
+    """
+    ADMM algorithm with subproblem approximation for constrained basis pursuit denoising (a.k.a. BP delta)
+    solves
+    x = arg min_x g(x) s.t. f(b-Ax)=||b-Ax||_2 <= delta   where g(x)=||x||_1 (by default)
+
+    Parameters
+    ----------
+    A : m x n matrix, LinearOperator, or tuple (fA, fAT) of functions fA(z)=A.dot(z) and fAT(r)=A.conj().T.dot(r).
+    b : m-dimensional vector.
+    x : initial guess, (A.conj().T.dot(b) by default), will be mdified in this function.
+    delta : tolerance for residual (1e-3*||b||_2 by default).
+    maxiter: max. iterations (1000 by default) as a stopping criterion.
+    rtol : scalar, optional, default 1e-4
+        Relative convergence tolerance of `y` and `z` in ADMM, i.e., the primal and dual residuals as a stopping criterion.
+    alpha : scaling factor of the gradient of the quadratic term in the ADMM subproblem for g(x) to approximate the proximity operator (automatically computed by default).
+    rho : scalar, optional, default 1.
+        Augmented Lagrangian parameter.
+    nesterovs_momentum : Nesterov acceleration (False by default).
+    restart_every: restart the Nesterov acceleration every this number of iterations (disabled by default).
+    prox : proximity operator of sparsity inducing function g(x), the soft thresholding soft_thresh(z,l) (=prox.l1(z,l)) by default.
+    prox_loss : proximity operator of loss function f(b-Ax), orthogonal projection onto l2 ball with radius delta (=prox.ind_l2ball(z,delta)) by default.
+
+    Returns
+    -------
+    x : sparse solution.
+    r : residual (b - Ax).
+    count : loop count at termination.
+
+    References
+    ----------
+    J. Yang and Y. Zhang
+    "Alternating Direction Algorithms for $\ell_1$-Problems in Compressive Sensing"
+    SIAM J. Sci. Comput., 33(1), pp. 250-278, 2011.
+    https://epubs.siam.org/doi/10.1137/090777761
+
+    Example
+    -------
+    >>> x = basis_pursuit_delta(A, b, delta=0.05*linalg.norm(b), maxiter=1000, nesterovs_momentum=True)[0]
+    """
+
+    # define the functions that compute projections by A and its adjoint
+    if type(A) is tuple:
+        fA = A[0]
+        fAT = A[1]
+    else:
+        linopA = splinalg.aslinearoperator(A)
+        fA = linopA.matvec
+        fAT = linopA.rmatvec
+
+    # initialize x
+    if x is None:
+        x = np.zeros(A.shape[1], dtype=b.dtype)
+
+    # initialize delta
+    if delta is None:
+        delta = linalg.norm(b) * 1e-3
+
+    # initialize alpha using rough estimate of the Lipschitz constant
+    # alpha L + 1/rho < 2
+    if alpha is None:
+        L = 2*linalg.norm(fA(fAT(b))) / linalg.norm(b)
+        #L = linalg.norm(A) ** 2  # Lipschitz constant
+        alpha = (2.-1./rho)/L
+        #print('basis_pursuit_delta(): alpha = %.2e' % (alpha))
+
+    y = np.zeros_like(b) # np.zeros(3*m, dtype=c.dtype)
+
+    # initialize variables
+    t = 1.
+
+    count = 0
+    r = b - fA(x)  # residual
+    while count < maxiter:
+        count += 1
+
+        if np.fmod(count, restart_every) == 0:
+            t = 1.
+        if nesterovs_momentum:
+            told = t
+            t = 0.5 * (1. + sqrt(1. + 4. * t * t))
+
+        # update r
+        #dr = r.copy()  # old r
+        r = prox_loss(b - fA(x) - y, delta)
+        #dr = r - dr
+
+        # update x
+        g = fAT( fA(x) + r - b + y )
+        dx = x.copy()  # old x
+        x = prox(x - alpha * g, alpha/rho)
+        dx = x - dx
+        
+        # update y
+        dy = y.copy()
+        y = y + r + fA(x) - b
+        dy = y - dy
+
+        # Nesterov acceleration
+        if nesterovs_momentum:
+            #r = r + ((told - 1.) / t) * dr
+            #x = x + ((told - 1.) / t) * dx
+            y = y + ((told - 1.) / t) * dy
+        
+        # check convergence of primal and dual residuals
+        if linalg.norm(dx) < rtol * linalg.norm(x) and linalg.norm(dy) < rtol * linalg.norm(y):
+            break
+
+        if np.max(np.abs(x)) > 1e+20:          # check overflow
+            x = fAT(b)
+            y = np.zeros_like(b)
+            r = b.copy()
+            alpha /= eta
+            count = 0
+            print('basis_pursuit_delta(): Overflow. Restarted with a smaller constant alpha = %.2e' % (alpha))
+
+    r = b - fA(x)  # residual
+    return x, r, count
+

@@ -32,6 +32,16 @@ def spvec(n, nz, duplicate=False, toarray=True):
         return nz
 
 
+#%% numbers of data and dimensionality
+def num_and_dim(X, axis=0):
+    Xshape = X.shape
+    if len(Xshape) == 1:
+        return (1, Xshape[0])
+    if Xshape[0] == 1 or Xshape[1] == 1:
+        return (1, max(Xshape))
+    return (Xshape[axis], Xshape[axis-1])
+
+
 #%% Vectorize M
 def vec(M):
     return M.ravel()
