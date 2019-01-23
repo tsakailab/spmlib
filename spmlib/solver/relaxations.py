@@ -263,9 +263,9 @@ def basis_pursuit_delta(A, b, x=None,
                                 delta=None, maxiter=1000, rtol=1e-4, 
                                 alpha=None, rho=1., eta=2.,
                                 nesterovs_momentum=False, restart_every=np.nan, 
-                                prox=lambda z,l: prox.l1(z,l), prox_loss=lambda z,delta: prox.ind_l2ball(z,delta)):
+                                prox=lambda q,l: prox.l1(q,l), prox_loss=lambda q,delta: prox.ind_l2ball(q,delta)):
     """
-    ADMM algorithm with subproblem approximation for constrained basis pursuit denoising (a.k.a. BP delta)
+    ADMM algorithm with subproblem approximation for constrained basis pursuit denoising (a.k.a. BP delta) in Eq. (2.16) [Yang&Zhang11] 
     solves
     x = arg min_x g(x) s.t. f(b-Ax)=||b-Ax||_2 <= delta   where g(x)=||x||_1 (by default)
 
@@ -283,8 +283,8 @@ def basis_pursuit_delta(A, b, x=None,
         Augmented Lagrangian parameter.
     nesterovs_momentum : Nesterov acceleration (False by default).
     restart_every: restart the Nesterov acceleration every this number of iterations (disabled by default).
-    prox : proximity operator of sparsity inducing function g(x), the soft thresholding soft_thresh(z,l) (=prox.l1(z,l)) by default.
-    prox_loss : proximity operator of loss function f(b-Ax), orthogonal projection onto l2 ball with radius delta (=prox.ind_l2ball(z,delta)) by default.
+    prox : proximity operator of sparsity inducing function g(x), the soft thresholding soft_thresh(q,l) (=prox.l1(q,l)) by default.
+    prox_loss : proximity operator of loss function f(b-Ax), the orthogonal projection onto l2 ball with radius delta (=prox.ind_l2ball(q,delta)) by default.
 
     Returns
     -------
@@ -335,7 +335,6 @@ def basis_pursuit_delta(A, b, x=None,
     t = 1.
 
     count = 0
-    r = b - fA(x)  # residual
     while count < maxiter:
         count += 1
 
@@ -378,6 +377,118 @@ def basis_pursuit_delta(A, b, x=None,
             alpha /= eta
             count = 0
             print('basis_pursuit_delta(): Overflow. Restarted with a smaller constant alpha = %.2e' % (alpha))
+
+    r = b - fA(x)  # residual
+    return x, r, count
+
+
+
+def basis_pursuit_delta_DADM(A, b, x=None, 
+                                delta=None, maxiter=1000, rtol=1e-4, rho=1.,
+                                nesterovs_momentum=False, restart_every=np.nan, 
+                                prox=lambda q,r: prox.ind_linfball(q,r), prox_loss=lambda q,r: prox.ind_l2ball(q,r)):
+    """
+    DADM: Dual-based alternating directino method, appeared in [Yang&Zhang11] as Eq. (2.28),
+    solves the dual of constrained basis pursuit denoising:
+    y = arg max_y  b.dot(y) - delta*f(y) + g(fAT(y)),
+    where f(y)=||y||_2 and g(fAT(y))=indicator function for fA(y), i.e., zero if ||fAT(y)||_inf <= 1, infinity otherwise (by default).
+
+    Parameters
+    ----------
+    A : m x n matrix, LinearOperator, or tuple (fA, fAT) of functions fA(z)=A.dot(z) and fAT(r)=A.conj().T.dot(r).
+    b : m-dimensional vector.
+    x : initial guess, (A.conj().T.dot(b) by default), will be mdified in this function.
+    delta : tolerance for residual (1e-3*||b||_2 by default).
+    maxiter: max. iterations (1000 by default) as a stopping criterion.
+    rtol : scalar, optional, default 1e-4
+        Relative convergence tolerance of `y` and `z` in ADMM, i.e., the primal and dual residuals as a stopping criterion.
+    rho : scalar, optional, default 1.
+        Augmented Lagrangian parameter.
+    nesterovs_momentum : Nesterov acceleration (False by default).
+    restart_every: restart the Nesterov acceleration every this number of iterations (disabled by default).
+    prox : proximity operator of sparsity inducing function g(x), the orthogonal projection onto linf ball with radius 1 (=prox.ind_linfball(q,r) by default.
+    prox_loss : orthogonal projection onto l2 ball with radius delta (=prox.ind_l2ball(q,delta)) by default.
+
+    Returns
+    -------
+    x : sparse solution.
+    r : residual (b - Ax).
+    count : loop count at termination.
+
+    References
+    ----------
+    J. Yang and Y. Zhang
+    "Alternating Direction Algorithms for $\ell_1$-Problems in Compressive Sensing"
+    SIAM J. Sci. Comput., 33(1), pp. 250-278, 2011.
+    https://epubs.siam.org/doi/10.1137/090777761
+
+    Example
+    -------
+    >>> x = basis_pursuit_delta_DADM(A, b, delta=0.05*linalg.norm(b), maxiter=1000, nesterovs_momentum=True)[0]
+    """
+
+    # define the functions that compute projections by A and its adjoint
+    if type(A) is tuple:
+        fA = A[0]
+        fAT = A[1]
+    else:
+        linopA = splinalg.aslinearoperator(A)
+        fA = linopA.matvec
+        fAT = linopA.rmatvec
+
+    # initialize x
+    if x is None:
+        x = fAT(b)
+
+    # initialize delta
+    if delta is None:
+        delta = linalg.norm(b) * 1e-3
+
+    y = np.zeros_like(b) # np.zeros(3*m, dtype=c.dtype)
+
+    # initialize variables
+    t = 1.
+
+    count = 0
+    z = x
+    while count < maxiter:
+        count += 1
+
+        if np.fmod(count, restart_every) == 0:
+            t = 1.
+        if nesterovs_momentum:
+            told = t
+            t = 0.5 * (1. + sqrt(1. + 4. * t * t))
+
+        # update z
+        #dz = z.copy()  # old z
+        #z = prox(x + fAT(y), 1)
+        z = prox(x/rho + fAT(y), 1)
+        #dz = z - dz
+
+        # update y
+        dy = y.copy()  # old y
+        #q = fA(z - x) + b/rho
+        q = fA(z) - (fA(x) - b)/rho
+        #print linalg.norm(q)
+        y = q - prox_loss(q, delta/rho)
+        dy = y - dy
+        
+        # update x
+        dx = x.copy()
+        #x = x - z + fAT(y)
+        x = x - rho*(z - fAT(y))
+        dx = x - dx
+
+        # Nesterov acceleration
+        if nesterovs_momentum:
+            #z = z + ((told - 1.) / t) * dz
+            #x = x + ((told - 1.) / t) * dx
+            y = y + ((told - 1.) / t) * dy
+        
+        # check convergence of primal and dual residuals
+        if linalg.norm(dx) < rtol * linalg.norm(x) and linalg.norm(dy) < rtol * linalg.norm(y):
+            break
 
     r = b - fA(x)  # residual
     return x, r, count
