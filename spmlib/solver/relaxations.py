@@ -205,7 +205,8 @@ def greedy_coordinate_descent(A, b, x=None,
 
     # initialize x
     if x is None:
-        x = np.zeros(A.shape[1], dtype=b.dtype)
+        x = np.zeros_like(fAT(b))
+        #x = np.zeros(A.shape[1], dtype=b.dtype)
 
     # A = splinalg.LinearOperator((b.shape[0],x.shape[0]), matvec=fA, rmatvec=fAT)
 
@@ -314,7 +315,7 @@ def basis_pursuit_delta(A, b, x=None,
 
     # initialize x
     if x is None:
-        x = np.zeros(A.shape[1], dtype=b.dtype)
+        x = fAT(b)
 
     # initialize delta
     if delta is None:
