@@ -64,7 +64,7 @@ def svt_svds(Z, th, thresholding=lambda z,th: soft(z, th), k=None, tol=0):
     
 def l2_soft(z, th, c=None, thresholding=soft):
     """
-    c + soft(||q-c||_2,l)/||q-c||_2 * (q-c)
+    c + soft(||z-c||_2,th)/||z-c||_2 * (z-c)
     """
     if c is None:
         normz = linalg.norm(z)
