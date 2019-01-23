@@ -124,6 +124,14 @@ def l0(q, l=1):
 
 
 
+def scad(z, th, a=3.7):
+    """
+    prox of the moothly clipped absolute deviation regularizer
+    """
+    return th.smoothly_clipped_absolute_deviation(z, th, a)
+
+
+
 def nuclear(Q, l=1):
     """
     arg min_X l*||X||_* + 0.5*||X-Q||_F^2
