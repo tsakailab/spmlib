@@ -301,7 +301,176 @@ def low_rank_matrix_completion_ind(Y, R=None, rtol=1e-12, tol=None, rho=1., maxi
 
 
 
-def stable_principal_component_pursuit(D, tol=None, ls=None, rtol=1e-12, rho=1., maxiter=300, verbose=False, nesterovs_momentum=False, restart_every = np.nan, 
+def stable_principal_component_pursuit(C, R=None, tol=None, ls=None, rtol=1e-12, rho=1., maxiter=300, verbose=False, nesterovs_momentum=False, restart_every = np.nan, 
+                                       prox_LS=lambda q,r,c: prox.ind_l2ball(q,r,c),
+                                       prox_L=lambda Q,l: prox.nuclear(Q,l), 
+                                       prox_S=lambda q,l: prox.l1(q,l)):
+    """
+    Low-rank and sparse matrix approximation (a.k.a. Stable principal component pursuit; SPCP, three-term decomposition; TTD)
+    solves the following minimization problem by ADMM to find low-rank and sparse matrices, L and S, that approximate C as L + S.
+    ([vecL; vecS], [z_LS; z_L; z_S]) = arg min_(x,z) g_LS(z_LS) + g_L(z_L) + g_S(z_S)
+                                s.t. [z_LS; z_L; z_S] = [M M; I O; O I] * [vecL; vecS].
+    Here, by default,
+    g_LS(z_LS) = indicator function, i.e., zero if ||C - mat(z_LS)||_F <= tol, infinity otherwise,
+    g_L(z_L) = ||mat(z_L)||_*, i.e., nuclear norm of mat(z_L),
+    g_S(z_S) = ||ls.*z_S||_1, i.e., l1 norm of mat(z_S) with the weight ls,
+    M  : linear operator that extracts valid entries from vecC=C.ravel(), i.e., M(v)=v[R.ravel()].
+    
+    Parameters
+    ----------
+    C : array_like, shape (`m`, `n`)
+        `m` x `n` matrix to be completed and separated into L and S, some of whose entries can be np.nan, meaning "masked (not ovserved)".
+    R : array_like, optional, default None
+        `m` x `nc` bool matrix of a mask of C. False indicates "masked".
+    tol : scalar, optional, default None
+        Tolerance for residual. If None, tol = rtol * ||C||_F
+    ls : scalar, optional, default None
+        Weight of sparse regularizer.  `ls` can be a matrix of weights for each entries of `Z_s.reshape(m,n)`.
+        If None, ls = 1./sqrt(max(C.shape)).
+    rtol : scalar, optional, default 1e-12
+        Relative convergence tolerance of `u` and `z` in ADMM, i.e., the primal and dual residuals.
+    rho : scalar, optional, default 1.
+        Augmented Lagrangian parameter.
+    maxiter : int, optional, default 300
+        Maximum iterations.
+    verbose: int or bool, optional, default False
+        Print the costs every this number.
+    nesterovs_momentum : bool, optional, default False
+        Nesterov acceleration.
+    restart_every : int, optional, default `np.nan`
+        Restart the Nesterov acceleration every `restart_every` iterations. If `np.nan`, this is disabled.
+    prox_LS : function, optional, default `spmlib.proxop.ind_l2ball`
+        Proximity operator as a Python function for the regularizer g_LS of `z_LS` = `vecL`+`vecS`. By default, `prox_LS` is `lambda q,r,c:spmlib.proxop.ind_l2ball(q,r,c)`, i.e., the prox. of the indicator function of l2-ball with radius 'r' and center 'c'.
+    prox_L : function, optional, default `spmlib.proxop.squ_l2_from_subspace`
+        Proximity operator as a Python function for the regularizer g_L of `z_L` = `vecL`. By default, `prox_L` is `lambda Q,l:spmlib.proxop.nuclear(Q,1)`, i.e., the prox. of the nuclear norm * l*||mat z_L||_*.
+    prox_S : function, optional, default `spmlib.proxop.l1`
+        Proximity operator as a Python function for the regularizer g_S of `z_S` = `vecS`. By default, `prox_S` is `lambda q,l:spmlib.proxop.l1(q,l)`, i.e., the soft thresholding operator as the prox. of l1 norm ||l.*z_S||_1.
+
+    Returns
+    -------
+    L : (`m`, `n`) ndarray, x[:m].reshape(`m`,`n`) = np.dot(U, np.dot(sv, Vh))
+        Low-rank matrix estimate.
+    S : (`m`, `n`) ndarray, x[m:].reshape(`m`,`n`)
+        Sparse matrix estimate.
+    U : ndarray, shape (`M`, `r`) with ``r = min(m, n)``
+        Unitary matrix having left singular vectors as columns.
+    sv : ndarray, shape (`r`,)
+        Singular values, sorted in non-increasing order.
+    Vh : ndarray, shape (`r`, `n`)
+        Unitary matrix having right singular vectors as rows.
+    count : int
+        Loop count at termination.
+        
+    Example
+    -------
+    >>> stable_principal_component_pursuit(C, ls=1., tol=1e-4*linalg.norm(C), rtol=1e-4, maxiter=300, verbose=10)[0]
+    See demo_spmlib_solvers_matrix.py
+    """
+    C = C.copy()
+    # if a bool matrix R (observation) is given, mask C with False of R
+    if R is not None:
+        C[~R] = np.nan
+    #   NaN in C is masked
+    C = np.ma.masked_invalid(C)
+    numObsC = C.count()
+    # C and R are modified to data and mask arrays, respectively.
+    C, R = C.data, ~C.mask
+    
+    m, n = C.shape
+    mn = m*n
+    if ls is None:
+        ls = 1./sqrt(max(C.shape))
+    #ls = np.array(ls).ravel()
+    if tol is None:
+        tol = rtol * linalg.norm(C)
+
+    def G(x, q):
+        q[:numObsC]     = (x[:mn] + x[mn:])[R.ravel()]
+        q[numObsC:-mn]  = x[:mn]
+        q[-mn:]         = x[mn:]
+
+    def GT(q, p):
+        p[:mn] = 0.
+        p[:mn][R.ravel()] = q[:numObsC]
+        p[mn:] = p[:mn] + q[-mn:]
+        p[:mn] += q[numObsC:-mn]
+
+    def p2x(p, x):
+        rp = np.zeros(mn, dtype=C.dtype)
+        rp[R.ravel()] = (1./3.) * (p[:mn] + p[mn:])[R.ravel()]
+        x[:mn] = p[:mn] - rp
+        x[mn:] = p[mn:] - rp
+
+    # initialize
+    x = np.zeros(2*mn, dtype=C.dtype)
+    z = np.zeros(numObsC+2*mn, dtype=C.dtype)
+    u = np.zeros_like(z)
+    count = 0
+
+    p = np.zeros_like(x)
+    t = 1. #
+    while count < maxiter:
+        count += 1
+
+        if np.fmod(count, restart_every) == 0: #
+            t = 1.
+        if nesterovs_momentum:
+            told = t
+            t = 0.5 * (1. + sqrt(1. + 4. * t * t))
+
+        # update x
+        #dx = x.copy()
+        #p = G.T.dot(z - u)
+        q = z - u
+        GT(q, p)
+        p2x(p, x)
+        #dx = x - dx
+
+        G(x, q)
+        q += u
+ 
+        # update z
+        dz = z.copy() #
+        z[:numObsC]  = prox_LS(q[:numObsC], tol, C[R].ravel())
+        L, U, sv, Vh = prox_L(q[numObsC:-mn].reshape(m,n), 1./rho)
+        z[numObsC:-mn] = L.ravel()
+        z[-mn:]  = prox_S(q[-mn:], ls/rho)
+        dz = z - dz #
+
+        if nesterovs_momentum:
+           # update x again (heuristic)
+           q = z - u
+           GT(q, p)
+           p2x(p, x)
+
+        # update u
+        # u = u + G(x) - z
+        du = u.copy()
+        G(x, q)
+        u = u + q - z
+        du = u - du
+
+        # Nesterov acceleration
+        if nesterovs_momentum:
+#            z = z + ((told - 1.) / t) * dz
+            u = u + ((told - 1.) / t) * du    # update u only (heuristic)
+
+        if verbose:
+            if np.fmod(count,verbose) == 0:
+                print('%2d: ||R*(C-(L+S))||_F=%.2e, ||L||_*=%.2e (rnk=%d), ||S||_1=%.2e (nnz=%2.1f%%)' 
+                      % (count, linalg.norm((x[:mn]+x[mn:])[R.ravel()]-C[R].ravel()), 
+                         np.sum(sv), np.count_nonzero(sv), 
+                         np.sum(np.abs(x[mn:])), 100.*np.count_nonzero(z[-mn:])/mn))
+
+        # check convergence of primal and dual residuals
+        if linalg.norm(du) < rtol * linalg.norm(u) and linalg.norm(dz) < rtol * linalg.norm(z):
+            break
+
+    return x[:mn].reshape(m,n), x[mn:].reshape(m,n), U, sv, Vh, count
+
+
+
+def _stable_principal_component_pursuit(D, tol=None, ls=None, rtol=1e-12, rho=1., maxiter=300, verbose=False, nesterovs_momentum=False, restart_every = np.nan, 
                                        prox_LS=lambda q,r,c: prox.ind_l2ball(q,r,c),
                                        prox_L=lambda Q,l: prox.nuclear(Q,l), 
                                        prox_S=lambda q,l: prox.l1(q,l)):
@@ -317,15 +486,13 @@ def stable_principal_component_pursuit(D, tol=None, ls=None, rtol=1e-12, rho=1.,
     
     Parameters
     ----------
-    Y : array_like, shape (`m`, `n`)
-        `m` x `n` matrix to be completed, some of whose entries can be np.nan, meaning "masked (not ovserved)".
-    R : array_like, optional, default None
-        `m` x `nc` bool matrix of a mask of Y. False indicates "masked".
-    ls : scalar, optional, default None
-        Weight of sparse regularizer.  `ls` can be a vector of weights for each entries of `Z_s`.
-        If None, ls = 1./sqrt(max(D.shape)).
+    D : array_like, shape (`m`, `n`)
+        `m` x `n` matrix to be separated into L and S.
     tol : scalar, optional, default None
         Tolerance for residual. If None, tol = rtol * ||D||_F
+    ls : scalar, optional, default None
+        Weight of sparse regularizer.  `ls` can be a matrix of weights for each entries of `z_S.reshape(m,n)`.
+        If None, ls = 1./sqrt(max(D.shape)).
     rtol : scalar, optional, default 1e-12
         Relative convergence tolerance of `u` and `z` in ADMM, i.e., the primal and dual residuals.
     rho : scalar, optional, default 1.
@@ -369,6 +536,7 @@ def stable_principal_component_pursuit(D, tol=None, ls=None, rtol=1e-12, rho=1.,
     mn = m*n
     if ls is None:
         ls = 1./sqrt(max(D.shape))
+    ls = np.array(ls).ravel()
     if tol is None:
         tol = rtol * linalg.norm(D)
 
@@ -439,6 +607,7 @@ def stable_principal_component_pursuit(D, tol=None, ls=None, rtol=1e-12, rho=1.,
             break
 
     return x[:mn].reshape(m,n), x[mn:].reshape(m,n), U, sv, Vh, count
+
 
 
 

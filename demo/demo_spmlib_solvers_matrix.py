@@ -95,6 +95,7 @@ print(sest[np.nonzero(sest)])
 
 
 
+
 print('====(Deomo3: SPCP)====')
 
 ng, dim = 3, 1000
@@ -112,7 +113,7 @@ S = np.zeros((dim, n),dtype=dtype)
 support = rng.choice(dim*n, int(dim*n*0.15), replace=False)
 S.ravel()[support] = 10.*rng.randn(support.size) / sqrt(dim)
 S = np.tile(S,(ng,1)) # group sparse matrix
-print('mean(abs(S)) = %.2e, %d nonzeros in S' % (np.mean(np.abs(S)),ng*support.size))
+print('mean(abs(S)) = %.2e, %d nonzeros in S (%2.1f%%)' % (np.mean(np.abs(S)),ng*support.size,100.*ng*support.size/(m*n)))
 
 D = L + S
 noisep = 0.03
@@ -144,7 +145,7 @@ def sf_soft(q,l,dim,n):
 
 
 #import spmlib.proxop as prox
-#import spmlib.thresholding._jit as th_jit
+import spmlib.thresholding._jit as th_jit
 #import spmlib.thresholding as th_jit
 t0 = time()
 Lest, Sest, _, sest, _, it = sps.stable_principal_component_pursuit(D, tol=linalg.norm(E), ls=None, rtol=1e-2, rho=1., maxiter=100, nesterovs_momentum=True,
@@ -164,4 +165,39 @@ print('%d nonzeros in S estimated, mean(abs(S)) = %.2e' % (sum(np.abs(Sest.ravel
 #print('nonzero sv = ', sest[np.nonzero(sest)])
 print('nonzero sv = ')
 print(sest[sest > np.spacing(np.float32(1.0))])
+
+from sklearn import metrics
+print(metrics.classification_report(np.abs(S.ravel()) > 1e-2, np.abs(Sest.ravel()) > 1e-2))
+print(metrics.confusion_matrix(np.abs(S.ravel()) > 1e-2, np.abs(Sest.ravel()) > 1e-2))
+
+
+
+
+print('====(Deomo4: SPCP for incomplete data)====')
+
+R = rng.rand(m,n) < 0.90
+print('%.2f %% entries are given ..' % (100.0 * sum(R.ravel())/R.size))
+Lest, Sest, _, sest, _, it = sps.stable_principal_component_pursuit(D, R=R, tol=linalg.norm(E), ls=None, rtol=1e-2, rho=1., maxiter=100, nesterovs_momentum=True,
+                                                                verbose=10)
+#                                                                prox_L=lambda Q,l: th.singular_value_thresholding(Q,2*l,thresholding=th_jit.smoothly_clipped_absolute_deviation),
+#                                                                prox_L=lambda Q,l: th.svt_svds(Q, l, k=13, tol=1e-1, thresholding=th_jit.smoothly_clipped_absolute_deviation),
+#                                                                prox_LS=lambda q,r,c: prox.ind_l2ball(q,3.*linalg.norm(D),c),
+#                                                                prox_S=lambda q,l: sf_soft(q,l,dim,n))
+#                                                                prox_S=lambda q,l: th_jit.group_scad(q,2*l, np.tile(np.reshape(np.arange(dim*n), (dim,n)), (ng,1)), normalize=False))
+#                                                                prox_S=lambda q,l: th_jit.group_scad(q,l*np.sqrt(dim*m,dtype=np.float32), np.tile(np.reshape(np.arange(dim*n), (dim,n)), (ng,1)), normalize=True))
+#                                                                prox_S=lambda q,l: th_jit.smoothly_clipped_absolute_deviation(q,l))
+
+np.set_printoptions(suppress=True)
+print('done in %.2fs with %d steps' % (time() - t0, it))
+print('rel. error in L: %.2e,  S: %.2e' % (linalg.norm(Lest-L)/linalg.norm(L), linalg.norm(Sest-S)/linalg.norm(S)))
+print('%d nonzeros in S estimated, mean(abs(S)) = %.2e' % (sum(np.abs(Sest.ravel()) > 1e-2), np.mean(np.abs(Sest))))
+#print('nonzero sv = ', sest[np.nonzero(sest)])
+print('nonzero sv = ')
+print(sest[sest > np.spacing(np.float32(1.0))])
+
+from sklearn import metrics
+print(metrics.classification_report(np.abs(S[R].ravel()) > 1e-2, np.abs(Sest[R].ravel()) > 1e-2))
+print(metrics.confusion_matrix(np.abs(S[R].ravel()) > 1e-2, np.abs(Sest[R].ravel()) > 1e-2))
+
+
 
